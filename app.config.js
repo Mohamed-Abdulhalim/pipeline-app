@@ -24,6 +24,7 @@ module.exports = {
     plugins: [
       'expo-sqlite',
       'expo-font',
+      'expo-local-authentication',
       [
         'expo-notifications',
         {

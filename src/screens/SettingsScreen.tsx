@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { ReactNode, useEffect, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { exportBackup, pickBackup, restoreBackup } from '../backup';
@@ -91,6 +92,19 @@ export default function SettingsScreen(props: {
   }, [props.version]);
 
   const toggleHidden = async (v: boolean) => {
+    if (v) {
+      const level = await LocalAuthentication.getEnrolledLevelAsync();
+      if (level === LocalAuthentication.SecurityLevel.NONE) {
+        Alert.alert('No screen lock', 'Set up a fingerprint or screen lock on your phone first, so hidden savings stay protected.');
+        return;
+      }
+      const res = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Unlock hidden savings',
+        cancelLabel: 'Cancel',
+        disableDeviceFallback: false,
+      });
+      if (!res.success) return;
+    }
     setShowHidden(v);
     await saveSetting('showHidden', v ? 1 : 0);
     success();
@@ -186,7 +200,11 @@ export default function SettingsScreen(props: {
         />
       </Section>
 
-      <Section title="Savings" icon="archive" hint="Hidden savings always come out of net. This only controls whether you can see them.">
+      <Section
+        title="Savings"
+        icon="archive"
+        hint="Hidden savings always come out of net. Turning this on needs your fingerprint, and it switches off by itself when you leave the app."
+      >
         <View style={styles.switchRow}>
           <View style={styles.switchIcon}>
             <Icon name={showHidden ? 'eye' : 'eye-off'} size={17} color={showHidden ? colors.brass : colors.muted} />

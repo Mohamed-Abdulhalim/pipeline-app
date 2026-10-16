@@ -11,10 +11,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, Easing, Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Eyebrow, Icon, IconName, Scale, Serif } from './src/components/ui';
-import { getCategories, getSources, initDb } from './src/db';
+import { getCategories, getSettings, getSources, initDb, saveSetting } from './src/db';
 import { rescheduleAll, setupNotifications } from './src/notify';
 import IncomeScreen from './src/screens/IncomeScreen';
 import PipelineScreen from './src/screens/PipelineScreen';
@@ -101,6 +101,18 @@ function Shell() {
   const content = useRef(new Animated.Value(0)).current;
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (state) => {
+      if (state !== 'background') return;
+      const s = await getSettings();
+      if (s.showHidden === 1) {
+        await saveSetting('showHidden', 0);
+        bump();
+      }
+    });
+    return () => sub.remove();
+  }, [bump]);
 
   useEffect(() => {
     (async () => {
