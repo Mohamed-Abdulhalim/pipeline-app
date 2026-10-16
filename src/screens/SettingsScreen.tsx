@@ -1,14 +1,37 @@
-import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, Card, Input, Select } from '../components/ui';
+import Constants from 'expo-constants';
+import { ReactNode, useEffect, useState } from 'react';
+import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { exportBackup, pickBackup, restoreBackup } from '../backup';
+import { Button, Eyebrow, Icon, IconName, Input, Scale, Select, Serif, success } from '../components/ui';
 import { addSource, getSettings, removeSource, saveSetting } from '../db';
 import { rescheduleAll } from '../notify';
-import { colors } from '../theme';
+import { colors, fonts } from '../theme';
 
 const FOLLOWUP_OPTIONS = ['1 day', '2 days', '3 days', '5 days', '7 days', '14 days'];
 
-export default function SettingsScreen(props: { version: number; sources: string[]; bump: () => void }) {
+function Section(props: { title: string; icon: IconName; hint?: string; children: ReactNode }) {
+  return (
+    <View style={{ marginBottom: 26 }}>
+      <View style={styles.sectionHead}>
+        <View style={styles.sectionIcon}>
+          <Icon name={props.icon} size={15} color={colors.brass} />
+        </View>
+        <Eyebrow style={{ color: colors.textDim }}>{props.title}</Eyebrow>
+      </View>
+      <View style={styles.card}>
+        {props.hint && <Text style={styles.hint}>{props.hint}</Text>}
+        {props.children}
+      </View>
+    </View>
+  );
+}
+
+export default function SettingsScreen(props: {
+  version: number;
+  sources: string[];
+  bump: () => void;
+  bottomSpace: number;
+}) {
   const [newSource, setNewSource] = useState('');
   const [followup, setFollowup] = useState('3 days');
   const [rate, setRate] = useState('50');
@@ -25,6 +48,7 @@ export default function SettingsScreen(props: { version: number; sources: string
     if (!name) return;
     await addSource(name);
     setNewSource('');
+    success();
     props.bump();
   };
 
@@ -56,7 +80,9 @@ export default function SettingsScreen(props: { version: number; sources: string
       return;
     }
     await saveSetting('usdRate', n);
+    success();
     Alert.alert('Saved', `New USD entries convert at ${n} EGP.`);
+    props.bump();
   };
 
   const doExport = async () => {
@@ -82,6 +108,7 @@ export default function SettingsScreen(props: { version: number; sources: string
             onPress: async () => {
               await restoreBackup(data);
               await rescheduleAll();
+              success();
               props.bump();
               Alert.alert('Restored', 'Backup loaded.');
             },
@@ -94,57 +121,99 @@ export default function SettingsScreen(props: { version: number; sources: string
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
-      <Text style={styles.section}>Sources</Text>
-      <Card style={{ marginBottom: 20 }}>
-        {props.sources.map((s) => (
-          <View key={s} style={styles.sourceRow}>
-            <Text style={styles.text}>{s}</Text>
-            <Text style={styles.remove} onPress={() => remove(s)}>
-              Remove
-            </Text>
+    <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 8, paddingBottom: props.bottomSpace + 20 }} keyboardShouldPersistTaps="handled">
+      <Section title="Income sources" icon="briefcase" hint="These fill every Source dropdown in the app.">
+        {props.sources.map((s, i) => (
+          <View key={s} style={[styles.sourceRow, i === 0 && { borderTopWidth: 0 }]}>
+            <View style={styles.sourceBadge}>
+              <Text style={styles.sourceInitial}>{s.charAt(0).toUpperCase()}</Text>
+            </View>
+            <Text style={styles.sourceName}>{s}</Text>
+            <Scale onPress={() => remove(s)} style={styles.removeBtn}>
+              <Icon name="x" size={15} color={colors.muted} />
+            </Scale>
           </View>
         ))}
-        <View style={{ marginTop: 12 }}>
-          <Input label="Add a source" value={newSource} onChange={setNewSource} placeholder="e.g. Upwork" />
-          <Button title="Add source" variant="ghost" onPress={add} />
+        <View style={{ marginTop: 16 }}>
+          <Input label="New source" value={newSource} onChange={setNewSource} icon="plus-circle" placeholder="e.g. Upwork" />
+          <Button title="Add source" icon="plus" variant="ghost" onPress={add} />
         </View>
-      </Card>
+      </Section>
 
-      <Text style={styles.section}>Follow-ups</Text>
-      <Card style={{ marginBottom: 20 }}>
-        <Select label="Remind me when an open item is untouched for" value={followup} options={FOLLOWUP_OPTIONS} onChange={changeFollowup} />
-      </Card>
+      <Section title="Follow-ups" icon="bell" hint="You get a reminder when an open lead sits untouched this long.">
+        <Select label="Remind me after" value={followup} options={FOLLOWUP_OPTIONS} onChange={changeFollowup} icon="clock" />
+      </Section>
 
-      <Text style={styles.section}>Currency</Text>
-      <Card style={{ marginBottom: 20 }}>
-        <Input label="EGP per 1 USD" value={rate} onChange={setRate} keyboardType="numeric" />
-        <Button title="Save rate" variant="ghost" onPress={saveRate} />
-      </Card>
+      <Section title="Currency" icon="repeat" hint="USD amounts are converted to EGP at this rate when you save them.">
+        <Input label="EGP per 1 USD" value={rate} onChange={setRate} keyboardType="numeric" icon="dollar-sign" />
+        <Button title="Save rate" icon="check" variant="ghost" onPress={saveRate} />
+      </Section>
 
-      <Text style={styles.section}>Backup</Text>
-      <Card>
-        <Text style={[styles.muted, { marginBottom: 12 }]}>
-          Data lives only on this phone. Uninstalling the app deletes it. Export regularly to Google Drive or WhatsApp yourself.
-        </Text>
-        <Button title="Export backup" onPress={doExport} style={{ marginBottom: 10 }} />
-        <Button title="Restore from backup" variant="ghost" onPress={doImport} />
-      </Card>
+      <Section
+        title="Backup"
+        icon="shield"
+        hint="Your data lives only on this phone. Uninstalling deletes it. Export weekly to Drive or WhatsApp."
+      >
+        <Button title="Export backup" icon="upload" onPress={doExport} style={{ marginBottom: 10 }} />
+        <Button title="Restore from backup" icon="download" variant="ghost" onPress={doImport} />
+      </Section>
+
+      <View style={styles.footer}>
+        <Image source={require('../../assets/mark.png')} style={{ width: 64, height: 64, opacity: 0.85 }} />
+        <Serif size={22}>Pipeline</Serif>
+        <Text style={styles.version}>Version {Constants.expoConfig?.version ?? '1.0'}</Text>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { color: colors.muted, fontSize: 13, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.6 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginLeft: 2 },
+  sectionIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    backgroundColor: colors.brassSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  hint: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, lineHeight: 19, marginBottom: 14 },
   sourceRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
   },
-  text: { color: colors.text, fontSize: 15 },
-  remove: { color: colors.bad, fontSize: 14, fontWeight: '600' },
-  muted: { color: colors.muted, fontSize: 14, lineHeight: 20 },
+  sourceBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: colors.surfaceHi,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  sourceInitial: { color: colors.brass, fontFamily: fonts.serif, fontSize: 18 },
+  sourceName: { color: colors.text, fontFamily: fonts.semibold, fontSize: 15, flex: 1 },
+  removeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceHi,
+  },
+  footer: { alignItems: 'center', marginTop: 10, opacity: 0.8 },
+  version: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 },
 });

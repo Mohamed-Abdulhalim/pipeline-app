@@ -8,12 +8,12 @@ module.exports = {
     orientation: 'portrait',
     icon: './assets/icon.png',
     userInterfaceStyle: 'dark',
-    backgroundColor: '#0F1115',
+    backgroundColor: '#0A0C11',
     android: {
       package: 'pro.halim.pipeline',
       versionCode: build,
       adaptiveIcon: {
-        backgroundColor: '#0F1115',
+        backgroundColor: '#0A0C11',
         foregroundImage: './assets/android-icon-foreground.png',
         backgroundImage: './assets/android-icon-background.png',
         monochromeImage: './assets/android-icon-monochrome.png',
@@ -21,6 +21,25 @@ module.exports = {
       predictiveBackGestureEnabled: false,
       permissions: ['POST_NOTIFICATIONS', 'SCHEDULE_EXACT_ALARM'],
     },
-    plugins: ['expo-sqlite', 'expo-notifications'],
+    plugins: [
+      'expo-sqlite',
+      'expo-font',
+      [
+        'expo-notifications',
+        {
+          icon: './assets/android-icon-monochrome.png',
+          color: '#D9AE62',
+        },
+      ],
+      [
+        'expo-splash-screen',
+        {
+          image: './assets/splash-icon.png',
+          imageWidth: 200,
+          resizeMode: 'contain',
+          backgroundColor: '#0A0C11',
+        },
+      ],
+    ],
   },
 };

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, Input, Select } from '../components/ui';
+import { Button, Input, Select, SheetHeader, success } from '../components/ui';
 import {
   CURRENCIES,
   Currency,
@@ -15,7 +15,7 @@ import {
   updateItem,
 } from '../db';
 import { cancelItem, rescheduleItem } from '../notify';
-import { colors } from '../theme';
+import { colors, stageColors } from '../theme';
 
 export default function ItemForm(props: {
   visible: boolean;
@@ -74,6 +74,7 @@ export default function ItemForm(props: {
       id = await insertItem(input);
     }
     await rescheduleItem(id);
+    success();
     props.onSaved();
   };
 
@@ -81,6 +82,7 @@ export default function ItemForm(props: {
     if (!props.item) return;
     await touchItem(props.item.id);
     await rescheduleItem(props.item.id);
+    success();
     props.onSaved();
   };
 
@@ -102,37 +104,46 @@ export default function ItemForm(props: {
   };
 
   return (
-    <Modal visible={props.visible} animationType="slide" onRequestClose={props.onClose}>
+    <Modal visible={props.visible} animationType="slide" statusBarTranslucent onRequestClose={props.onClose}>
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior="height">
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-          <Text style={styles.cancel} onPress={props.onClose}>
-            Cancel
-          </Text>
-          <Text style={styles.title}>{props.item ? 'Edit item' : 'New item'}</Text>
-          <Text style={styles.save} onPress={save}>
-            Save
-          </Text>
-        </View>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}>
-          <Input label="Title" value={title} onChange={setTitle} placeholder="e.g. n8n automation gig for dental clinic" />
-          <Select label="Stage" value={stage} options={STAGES} onChange={(v) => setStage(v as Stage)} />
-          <Select label="Source" value={source} options={props.sources} onChange={setSource} />
-          <Select label="Type" value={kind} options={KINDS} onChange={setKind} />
+        <SheetHeader title={props.item ? 'Edit entry' : 'New entry'} onClose={props.onClose} onSave={save} top={insets.top} />
+        <ScrollView
+          contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Input label="Title" value={title} onChange={setTitle} icon="type" placeholder="n8n automation for a dental clinic" />
+          <Select
+            label="Stage"
+            value={stage}
+            options={STAGES}
+            onChange={(v) => setStage(v as Stage)}
+            dot={(v) => stageColors[v]}
+          />
           <View style={styles.row}>
-            <View style={{ flex: 2, marginRight: 10 }}>
-              <Input label="Expected value" value={value} onChange={setValue} keyboardType="numeric" placeholder="0" />
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Select label="Source" value={source} options={props.sources} onChange={setSource} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Select label="Type" value={kind} options={KINDS} onChange={setKind} />
+            </View>
+          </View>
+          <View style={styles.row}>
+            <View style={{ flex: 1.6, marginRight: 10 }}>
+              <Input label="Expected value" value={value} onChange={setValue} keyboardType="numeric" icon="dollar-sign" placeholder="0" />
             </View>
             <View style={{ flex: 1 }}>
               <Select label="Currency" value={currency} options={CURRENCIES} onChange={(v) => setCurrency(v as Currency)} />
             </View>
           </View>
-          <Input label="Link" value={link} onChange={setLink} keyboardType="url" placeholder="https://" />
+          <Input label="Link" value={link} onChange={setLink} keyboardType="url" icon="link-2" placeholder="https://" />
           <Input label="Notes" value={notes} onChange={setNotes} multiline placeholder="Contact, next step, anything useful" />
-          {props.item && (
-            <>
-              <Button title="I followed up today" variant="ghost" onPress={followedUp} style={{ marginBottom: 10 }} />
-              <Button title="Delete" variant="danger" onPress={remove} />
-            </>
+          {props.item ? (
+            <View style={{ marginTop: 6 }}>
+              <Button title="I followed up today" icon="refresh-cw" variant="ghost" onPress={followedUp} style={{ marginBottom: 10 }} />
+              <Button title="Delete entry" icon="trash-2" variant="danger" onPress={remove} />
+            </View>
+          ) : (
+            <Button title="Add to pipeline" icon="plus" onPress={save} style={{ marginTop: 6 }} />
           )}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -141,17 +152,5 @@ export default function ItemForm(props: {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: { color: colors.text, fontSize: 17, fontWeight: '700' },
-  cancel: { color: colors.muted, fontSize: 16, padding: 4 },
-  save: { color: colors.accent, fontSize: 16, fontWeight: '700', padding: 4 },
   row: { flexDirection: 'row' },
 });
