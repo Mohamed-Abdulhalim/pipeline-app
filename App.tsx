@@ -18,16 +18,18 @@ import { getCategories, getSources, initDb } from './src/db';
 import { rescheduleAll, setupNotifications } from './src/notify';
 import IncomeScreen from './src/screens/IncomeScreen';
 import PipelineScreen from './src/screens/PipelineScreen';
+import SavingsScreen from './src/screens/SavingsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { colors, fonts } from './src/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 SplashScreen.setOptions({ fade: true, duration: 300 });
 
-type Tab = 'Pipeline' | 'Income' | 'Settings';
+type Tab = 'Pipeline' | 'Income' | 'Savings' | 'Settings';
 const TABS: { key: Tab; icon: IconName; title: string }[] = [
   { key: 'Pipeline', icon: 'layers', title: 'Pipeline' },
   { key: 'Income', icon: 'trending-up', title: 'Money' },
+  { key: 'Savings', icon: 'archive', title: 'Savings' },
   { key: 'Settings', icon: 'sliders', title: 'Settings' },
 ];
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -161,6 +163,7 @@ function Shell() {
         <View style={{ flex: 1 }}>
           {tab === 'Pipeline' && <PipelineScreen {...screenProps} />}
           {tab === 'Income' && <IncomeScreen {...screenProps} />}
+          {tab === 'Savings' && <SavingsScreen {...screenProps} />}
           {tab === 'Settings' && <SettingsScreen {...screenProps} />}
         </View>
         <View style={[styles.tabWrap, { paddingBottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">

@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { ReactNode, useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { exportBackup, pickBackup, restoreBackup } from '../backup';
 import { Button, Eyebrow, Icon, IconName, Input, Scale, Select, Serif, success } from '../components/ui';
 import { addCategory, addSource, getSettings, removeCategory, removeSource, saveSetting } from '../db';
@@ -80,13 +80,22 @@ export default function SettingsScreen(props: {
 }) {
   const [followup, setFollowup] = useState('3 days');
   const [rate, setRate] = useState('50');
+  const [showHidden, setShowHidden] = useState(false);
 
   useEffect(() => {
     getSettings().then((s) => {
       setFollowup(`${s.followupDays} ${s.followupDays === 1 ? 'day' : 'days'}`);
       setRate(String(s.usdRate));
+      setShowHidden(s.showHidden === 1);
     });
   }, [props.version]);
+
+  const toggleHidden = async (v: boolean) => {
+    setShowHidden(v);
+    await saveSetting('showHidden', v ? 1 : 0);
+    success();
+    props.bump();
+  };
 
   const changeFollowup = async (v: string) => {
     setFollowup(v);
@@ -122,7 +131,7 @@ export default function SettingsScreen(props: {
       const exp = data.expenses?.length ?? 0;
       Alert.alert(
         'Replace all data?',
-        `This backup has ${data.items.length} pipeline items, ${data.income.length} income entries and ${exp} expenses. Everything currently in the app will be replaced.`,
+        `This backup has ${data.items.length} pipeline items, ${data.income.length} income entries, ${exp} expenses and ${data.savings?.length ?? 0} savings entries. Everything currently in the app will be replaced.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -175,6 +184,21 @@ export default function SettingsScreen(props: {
             props.bump();
           }}
         />
+      </Section>
+
+      <Section title="Savings" icon="archive" hint="Hidden savings always come out of net. This only controls whether you can see them.">
+        <View style={styles.switchRow}>
+          <View style={styles.switchIcon}>
+            <Icon name={showHidden ? 'eye' : 'eye-off'} size={17} color={showHidden ? colors.brass : colors.muted} />
+          </View>
+          <Text style={styles.switchText}>View hidden savings</Text>
+          <Switch
+            value={showHidden}
+            onValueChange={toggleHidden}
+            trackColor={{ false: colors.surfaceHi, true: colors.brassLo }}
+            thumbColor={showHidden ? colors.brassHi : colors.muted}
+          />
+        </View>
       </Section>
 
       <Section title="Follow-ups" icon="bell" hint="You get a reminder when an open lead sits untouched this long.">
@@ -251,6 +275,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.surfaceHi,
   },
+  switchRow: { flexDirection: 'row', alignItems: 'center' },
+  switchIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceHi,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  switchText: { color: colors.text, fontFamily: fonts.semibold, fontSize: 15, flex: 1 },
   footer: { alignItems: 'center', marginTop: 10, opacity: 0.8 },
   version: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 },
 });

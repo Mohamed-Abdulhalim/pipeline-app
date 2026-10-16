@@ -6,7 +6,7 @@
 
 **Every income stream I have, in one place on my phone.**
 
-Leads, applications, clients, the money that lands, and the money that leaves, tracked in one small Android app I built for myself.
+Leads, applications, clients, the money that lands, the money that leaves, and what I put aside, tracked in one small Android app I built for myself.
 
 [![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)](https://github.com/Mohamed-Abdulhalim/pipeline-app/releases/latest/download/pipeline.apk)
 [![Expo](https://img.shields.io/badge/Expo-SDK%2058-000020?logo=expo&logoColor=white)](https://expo.dev)
@@ -45,11 +45,18 @@ If an open entry goes untouched for a few days (I pick how many), the phone remi
 ### 💰 Money
 Log money the day it arrives and spending the day it leaves, in EGP or USD (converted at a rate I set).
 
-- **Net** at the top: what came in minus what went out, compared with last month
+- **Net** at the top: what came in, minus what went out and what I saved, compared with last month
 - Received, spent, and the percentage I actually kept
 - Income broken down by source, with a plain warning when one source makes up 70% or more of the month. That's the number I care about most.
 - Spending broken down by category (rent, bills, food, and whatever else I add)
 - One timeline of every entry, filterable to income or expenses
+
+### 🏦 Savings
+Money I put aside comes straight out of that month's net, so the Money tab shows what's actually left to spend.
+
+- Total saved, what went in this month, and what share of income that is
+- Withdrawals put money back into that month's net when I need it
+- Any saving can be **hidden** when I create it. It still counts against net, but it stays out of sight until I flip **View hidden savings** in Settings.
 
 ### 💾 Backup
 Everything lives on the phone in SQLite. No account, no server, no sign-up. Export a JSON backup whenever you want and restore it on any phone.
@@ -106,7 +113,8 @@ src/
     PipelineScreen.tsx   The pipeline board
     ItemForm.tsx         Add and edit entries
     IncomeScreen.tsx     Money tab: income, expenses, net, breakdowns
-    SettingsScreen.tsx   Sources, categories, reminders, currency, backup
+    SavingsScreen.tsx    Savings balance, withdrawals, hidden entries
+    SettingsScreen.tsx   Sources, categories, hidden savings, reminders, currency, backup
 ```
 
 ## 🙌 Using it yourself

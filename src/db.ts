@@ -42,9 +42,23 @@ export type Expense = {
   note: string;
 };
 
+export type SavingKind = 'save' | 'withdraw';
+
+export type Saving = {
+  id: number;
+  kind: SavingKind;
+  amount: number;
+  currency: Currency;
+  amount_egp: number;
+  saved_at: number;
+  note: string;
+  hidden: number;
+};
+
 export type Settings = {
   followupDays: number;
   usdRate: number;
+  showHidden: number;
 };
 
 export const DEFAULT_CATEGORIES = ['Rent', 'Bills', 'Food', 'Transport', 'Family', 'Health', 'Subscriptions', 'Other'];
@@ -97,6 +111,16 @@ export async function initDb(): Promise<void> {
     CREATE TABLE IF NOT EXISTS categories (
       name TEXT PRIMARY KEY,
       sort INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS savings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL DEFAULT 'save',
+      amount REAL NOT NULL,
+      currency TEXT NOT NULL,
+      amount_egp REAL NOT NULL,
+      saved_at INTEGER NOT NULL,
+      note TEXT NOT NULL DEFAULT '',
+      hidden INTEGER NOT NULL DEFAULT 0
     );
   `);
   const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM sources');
@@ -151,6 +175,45 @@ export async function deleteExpense(id: number): Promise<void> {
   await db.runAsync('DELETE FROM expenses WHERE id = ?', id);
 }
 
+export async function getSavingsBetween(from: number, to: number): Promise<Saving[]> {
+  return db.getAllAsync<Saving>(
+    'SELECT * FROM savings WHERE saved_at >= ? AND saved_at < ? ORDER BY saved_at DESC, id DESC',
+    from,
+    to,
+  );
+}
+
+export async function getAllSavings(): Promise<Saving[]> {
+  return db.getAllAsync<Saving>('SELECT * FROM savings ORDER BY saved_at DESC, id DESC');
+}
+
+export async function insertSaving(input: Omit<Saving, 'id'>): Promise<void> {
+  await db.runAsync(
+    'INSERT INTO savings (kind, amount, currency, amount_egp, saved_at, note, hidden) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    input.kind,
+    input.amount,
+    input.currency,
+    input.amount_egp,
+    input.saved_at,
+    input.note,
+    input.hidden,
+  );
+}
+
+export async function setSavingHidden(id: number, hidden: boolean): Promise<void> {
+  await db.runAsync('UPDATE savings SET hidden = ? WHERE id = ?', hidden ? 1 : 0, id);
+}
+
+export async function deleteSaving(id: number): Promise<void> {
+  await db.runAsync('DELETE FROM savings WHERE id = ?', id);
+}
+
+export function savingsNet(rows: Saving[], includeHidden: boolean): number {
+  return rows
+    .filter((r) => includeHidden || !r.hidden)
+    .reduce((a, r) => a + (r.kind === 'save' ? r.amount_egp : -r.amount_egp), 0);
+}
+
 export async function getSources(): Promise<string[]> {
   const rows = await db.getAllAsync<{ name: string }>('SELECT name FROM sources ORDER BY sort, name');
   return rows.map((r) => r.name);
@@ -171,6 +234,7 @@ export async function getSettings(): Promise<Settings> {
   return {
     followupDays: Number(map.get('followupDays') ?? 3),
     usdRate: Number(map.get('usdRate') ?? 50),
+    showHidden: Number(map.get('showHidden') ?? 0),
   };
 }
 
@@ -269,6 +333,7 @@ export type Backup = {
   items: Item[];
   income: Income[];
   expenses?: Expense[];
+  savings?: Saving[];
   sources: string[];
   categories?: string[];
   settings: Settings;
@@ -277,11 +342,12 @@ export type Backup = {
 export async function exportAll(): Promise<Backup> {
   return {
     app: 'pipeline',
-    version: 2,
+    version: 3,
     exported_at: Date.now(),
     items: await db.getAllAsync<Item>('SELECT * FROM items'),
     income: await db.getAllAsync<Income>('SELECT * FROM income'),
     expenses: await db.getAllAsync<Expense>('SELECT * FROM expenses'),
+    savings: await db.getAllAsync<Saving>('SELECT * FROM savings'),
     sources: await getSources(),
     categories: await getCategories(),
     settings: await getSettings(),
@@ -291,9 +357,22 @@ export async function exportAll(): Promise<Backup> {
 export async function importAll(data: Backup): Promise<void> {
   await db.withTransactionAsync(async () => {
     await db.execAsync(
-      'DELETE FROM items; DELETE FROM income; DELETE FROM expenses; DELETE FROM sources; DELETE FROM categories; DELETE FROM settings;',
+      'DELETE FROM items; DELETE FROM income; DELETE FROM expenses; DELETE FROM savings; DELETE FROM sources; DELETE FROM categories; DELETE FROM settings;',
     );
     await seedCategories(data.categories?.length ? data.categories : DEFAULT_CATEGORIES);
+    for (const v of data.savings ?? []) {
+      await db.runAsync(
+        'INSERT INTO savings (id, kind, amount, currency, amount_egp, saved_at, note, hidden) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        v.id,
+        v.kind,
+        v.amount,
+        v.currency,
+        v.amount_egp,
+        v.saved_at,
+        v.note,
+        v.hidden,
+      );
+    }
     for (const e of data.expenses ?? []) {
       await db.runAsync(
         'INSERT INTO expenses (id, category, amount, currency, amount_egp, spent_at, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -339,5 +418,6 @@ export async function importAll(data: Backup): Promise<void> {
     }
     await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?)', 'followupDays', String(data.settings.followupDays));
     await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?)', 'usdRate', String(data.settings.usdRate));
+    await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?)', 'showHidden', String(data.settings.showHidden ?? 0));
   });
 }

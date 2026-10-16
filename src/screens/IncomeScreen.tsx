@@ -24,9 +24,11 @@ import {
   deleteIncome,
   getExpensesBetween,
   getIncomeBetween,
+  getSavingsBetween,
   getSettings,
   insertExpense,
   insertIncome,
+  savingsNet,
 } from '../db';
 import { colors, fonts } from '../theme';
 
@@ -93,24 +95,35 @@ export default function MoneyScreen(props: {
   const [offset, setOffset] = useState(0);
   const [rows, setRows] = useState<Row[]>([]);
   const [prevNet, setPrevNet] = useState<number | null>(null);
+  const [savedAll, setSavedAll] = useState(0);
+  const [savedVisible, setSavedVisible] = useState(0);
   const [filter, setFilter] = useState<Filter>('All');
   const [formOpen, setFormOpen] = useState(false);
   const range = useMemo(() => monthRange(offset), [offset]);
 
   const load = useCallback(async () => {
-    const [inc, exp, pInc, pExp] = await Promise.all([
+    const [inc, exp, pInc, pExp, sav, pSav, settings] = await Promise.all([
       getIncomeBetween(range.start.getTime(), range.end.getTime()),
       getExpensesBetween(range.start.getTime(), range.end.getTime()),
       getIncomeBetween(range.prev.getTime(), range.start.getTime()),
       getExpensesBetween(range.prev.getTime(), range.start.getTime()),
+      getSavingsBetween(range.start.getTime(), range.end.getTime()),
+      getSavingsBetween(range.prev.getTime(), range.start.getTime()),
+      getSettings(),
     ]);
+    setSavedAll(savingsNet(sav, true));
+    setSavedVisible(savingsNet(sav, settings.showHidden === 1));
     const merged: Row[] = [
       ...inc.map((r) => ({ kind: 'in' as Kind, id: r.id, label: r.source, amount: r.amount, currency: r.currency, egp: r.amount_egp, at: r.received_at, note: r.note })),
       ...exp.map((r) => ({ kind: 'out' as Kind, id: r.id, label: r.category, amount: r.amount, currency: r.currency, egp: r.amount_egp, at: r.spent_at, note: r.note })),
     ].sort((a, b) => b.at - a.at || (a.kind === b.kind ? b.id - a.id : a.kind === 'in' ? -1 : 1));
     setRows(merged);
-    const hadPrev = pInc.length + pExp.length > 0;
-    setPrevNet(hadPrev ? pInc.reduce((a, r) => a + r.amount_egp, 0) - pExp.reduce((a, r) => a + r.amount_egp, 0) : null);
+    const hadPrev = pInc.length + pExp.length + pSav.length > 0;
+    setPrevNet(
+      hadPrev
+        ? pInc.reduce((a, r) => a + r.amount_egp, 0) - pExp.reduce((a, r) => a + r.amount_egp, 0) - savingsNet(pSav, true)
+        : null,
+    );
   }, [range]);
 
   useEffect(() => {
@@ -121,7 +134,7 @@ export default function MoneyScreen(props: {
   const expenseRows = useMemo(() => rows.filter((r) => r.kind === 'out'), [rows]);
   const received = incomeRows.reduce((a, r) => a + r.egp, 0);
   const spent = expenseRows.reduce((a, r) => a + r.egp, 0);
-  const net = received - spent;
+  const net = received - spent - savedAll;
   const kept = received > 0 ? Math.round((net / received) * 100) : null;
   const delta = prevNet === null ? null : net - prevNet;
 
@@ -164,7 +177,7 @@ export default function MoneyScreen(props: {
       </View>
 
       <GlowCard style={{ marginBottom: 14 }}>
-        <Eyebrow style={{ color: colors.brass }}>Net · what you kept</Eyebrow>
+        <Eyebrow style={{ color: colors.brass }}>Net · left to spend</Eyebrow>
         <View style={styles.heroRow}>
           <Serif size={52} style={net < 0 ? { color: colors.bad } : undefined}>
             {net < 0 ? '−' : ''}
@@ -193,8 +206,13 @@ export default function MoneyScreen(props: {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
+            <Text style={[styles.statNum, { color: colors.brassHi }]}>{compactMoney(savedVisible)}</Text>
+            <Text style={styles.statLabel}>Saved</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
             <Text style={[styles.statNum, kept !== null && kept < 0 && { color: colors.bad }]}>{kept === null ? '–' : `${kept}%`}</Text>
-            <Text style={styles.statLabel}>Kept</Text>
+            <Text style={styles.statLabel}>Left</Text>
           </View>
         </View>
         {received > 0 && (
@@ -460,7 +478,7 @@ const styles = StyleSheet.create({
   stat: { flex: 1 },
   statNum: { color: colors.text, fontFamily: fonts.bold, fontSize: 18 },
   statLabel: { color: colors.muted, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 },
-  statDivider: { width: 1, backgroundColor: colors.line, marginHorizontal: 10 },
+  statDivider: { width: 1, backgroundColor: colors.line, marginHorizontal: 8 },
   spendTrack: { height: 6, borderRadius: 3, backgroundColor: colors.goodSoft, overflow: 'hidden', marginTop: 16 },
   spendFill: { height: 6, borderRadius: 3 },
   spendNote: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 8 },
