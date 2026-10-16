@@ -76,7 +76,7 @@ export async function initDb(): Promise<void> {
   `);
   const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM sources');
   if (!count || count.c === 0) {
-    await db.runAsync('INSERT INTO sources (name, sort) VALUES (?, ?)', 'Tactful salary', 0);
+    await db.runAsync('INSERT INTO sources (name, sort) VALUES (?, ?)', 'Salary', 0);
   }
 }
 
