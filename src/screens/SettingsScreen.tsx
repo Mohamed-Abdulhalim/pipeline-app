@@ -266,7 +266,7 @@ export default function SettingsScreen(props: {
 
       <View style={styles.footer}>
         <Image source={require('../../assets/mark.png')} style={{ width: 64, height: 64, opacity: 0.85 }} />
-        <Serif size={22}>Pipeline</Serif>
+        <Text style={styles.footerName}>السقفيه</Text>
         <Text style={styles.version}>Version {Constants.expoConfig?.version ?? '1.0'}</Text>
       </View>
     </ScrollView>
@@ -332,5 +332,6 @@ const styles = StyleSheet.create({
   },
   switchText: { color: colors.text, fontFamily: fonts.semibold, fontSize: 15, flex: 1 },
   footer: { alignItems: 'center', marginTop: 10, opacity: 0.8 },
+  footerName: { color: colors.text, fontFamily: fonts.arabic, fontSize: 22, lineHeight: 34 },
   version: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 },
 });

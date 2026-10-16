@@ -1,3 +1,4 @@
+import { Cairo_700Bold } from '@expo-google-fonts/cairo';
 import { InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic } from '@expo-google-fonts/instrument-serif';
 import {
   Manrope_400Regular,
@@ -74,7 +75,7 @@ function Intro({ onDone }: { onDone: () => void }) {
           transform: [{ translateY: word.interpolate({ inputRange: [0, 1], outputRange: [78, 58] }) }],
         }}
       >
-        <Text style={styles.wordmark}>Pipeline</Text>
+        <Text style={styles.wordmark}>السقفيه</Text>
         <Text style={styles.tagline}>Every stream, accounted for.</Text>
       </Animated.View>
     </Animated.View>
@@ -86,6 +87,7 @@ function Shell() {
   const [fontsLoaded] = useFonts({
     InstrumentSerif_400Regular,
     InstrumentSerif_400Regular_Italic,
+    Cairo_700Bold,
     Manrope_400Regular,
     Manrope_500Medium,
     Manrope_600SemiBold,
@@ -219,7 +221,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   topGlow: { position: 'absolute', top: 0, left: 0, right: 0, height: 320 },
   intro: { backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  wordmark: { color: colors.text, fontFamily: fonts.serif, fontSize: 44, letterSpacing: 0.5 },
+  wordmark: { color: colors.text, fontFamily: fonts.arabic, fontSize: 42, lineHeight: 64 },
   tagline: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, letterSpacing: 1.2, marginTop: 4 },
   header: {
     flexDirection: 'row',

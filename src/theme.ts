@@ -37,6 +37,7 @@ export const fonts = {
   semibold: 'Manrope_600SemiBold',
   bold: 'Manrope_700Bold',
   heavy: 'Manrope_800ExtraBold',
+  arabic: 'Cairo_700Bold',
 };
 
 export const brassGradient = [colors.brassHi, colors.brass, colors.brassLo] as const;

@@ -2,7 +2,7 @@ const build = Number(process.env.GITHUB_RUN_NUMBER || 1);
 
 module.exports = {
   expo: {
-    name: 'Pipeline',
+    name: 'السقفيه',
     slug: 'pipeline',
     version: `1.0.${build}`,
     orientation: 'portrait',
