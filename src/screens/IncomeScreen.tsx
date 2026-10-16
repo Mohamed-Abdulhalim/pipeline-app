@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Button,
+  Chip,
   compactMoney,
   Eyebrow,
   Fab,
@@ -16,11 +17,26 @@ import {
   SheetHeader,
   success,
 } from '../components/ui';
-import { CURRENCIES, Currency, deleteIncome, getIncomeBetween, getSettings, Income, insertIncome } from '../db';
+import {
+  CURRENCIES,
+  Currency,
+  deleteExpense,
+  deleteIncome,
+  getExpensesBetween,
+  getIncomeBetween,
+  getSettings,
+  insertExpense,
+  insertIncome,
+} from '../db';
 import { colors, fonts } from '../theme';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const PALETTE = ['#D9AE62', '#7FA6D9', '#7CCB9A', '#A99BE0', '#D98585', '#6CC3C9', '#C9A0C4'];
+const INCOME_PALETTE = ['#D9AE62', '#7FA6D9', '#7CCB9A', '#A99BE0', '#6CC3C9', '#C9A0C4', '#8A93A6'];
+const SPEND_PALETTE = ['#D98585', '#E6B05C', '#A99BE0', '#7FA6D9', '#6CC3C9', '#C9A0C4', '#8A93A6', '#D9AE62'];
+
+type Kind = 'in' | 'out';
+type Filter = 'All' | 'Income' | 'Expenses';
+type Row = { kind: Kind; id: number; label: string; amount: number; currency: Currency; egp: number; at: number; note: string };
 
 function monthRange(offset: number) {
   const now = new Date();
@@ -30,53 +46,102 @@ function monthRange(offset: number) {
   return { start, end, prev, month: MONTHS[start.getMonth()], year: start.getFullYear() };
 }
 
-export default function IncomeScreen(props: {
+function group(rows: Row[]): [string, number][] {
+  const m = new Map<string, number>();
+  for (const r of rows) m.set(r.label, (m.get(r.label) ?? 0) + r.egp);
+  return [...m.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function signed(n: number) {
+  return `${n < 0 ? '−' : ''}${formatMoney(Math.abs(n))}`;
+}
+
+function Breakdown(props: { title: string; items: [string, number][]; colorOf: Map<string, string>; children?: ReactNode }) {
+  const total = props.items.reduce((a, [, v]) => a + v, 0);
+  return (
+    <View style={styles.card}>
+      <Eyebrow style={{ marginBottom: 12 }}>{props.title}</Eyebrow>
+      <View style={styles.stack}>
+        {props.items.map(([name, amt]) => (
+          <View key={name} style={{ flex: amt, backgroundColor: props.colorOf.get(name), marginRight: 2 }} />
+        ))}
+      </View>
+      {props.children}
+      <View style={{ marginTop: 8 }}>
+        {props.items.map(([name, amt], i) => (
+          <View key={name} style={[styles.sourceRow, i === props.items.length - 1 && { borderBottomWidth: 0 }]}>
+            <View style={[styles.swatch, { backgroundColor: props.colorOf.get(name) }]} />
+            <Text style={styles.sourceName} numberOfLines={1}>
+              {name}
+            </Text>
+            <Text style={styles.sourcePct}>{Math.round((amt / total) * 100)}%</Text>
+            <Text style={styles.sourceAmt}>{formatMoney(amt)}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+export default function MoneyScreen(props: {
   version: number;
   sources: string[];
+  categories: string[];
   bump: () => void;
   bottomSpace: number;
 }) {
   const [offset, setOffset] = useState(0);
-  const [rows, setRows] = useState<Income[]>([]);
-  const [prevTotal, setPrevTotal] = useState(0);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [prevNet, setPrevNet] = useState<number | null>(null);
+  const [filter, setFilter] = useState<Filter>('All');
   const [formOpen, setFormOpen] = useState(false);
   const range = useMemo(() => monthRange(offset), [offset]);
 
   const load = useCallback(async () => {
-    const [cur, prev] = await Promise.all([
+    const [inc, exp, pInc, pExp] = await Promise.all([
       getIncomeBetween(range.start.getTime(), range.end.getTime()),
+      getExpensesBetween(range.start.getTime(), range.end.getTime()),
       getIncomeBetween(range.prev.getTime(), range.start.getTime()),
+      getExpensesBetween(range.prev.getTime(), range.start.getTime()),
     ]);
-    setRows(cur);
-    setPrevTotal(prev.reduce((a, r) => a + r.amount_egp, 0));
+    const merged: Row[] = [
+      ...inc.map((r) => ({ kind: 'in' as Kind, id: r.id, label: r.source, amount: r.amount, currency: r.currency, egp: r.amount_egp, at: r.received_at, note: r.note })),
+      ...exp.map((r) => ({ kind: 'out' as Kind, id: r.id, label: r.category, amount: r.amount, currency: r.currency, egp: r.amount_egp, at: r.spent_at, note: r.note })),
+    ].sort((a, b) => b.at - a.at || (a.kind === b.kind ? b.id - a.id : a.kind === 'in' ? -1 : 1));
+    setRows(merged);
+    const hadPrev = pInc.length + pExp.length > 0;
+    setPrevNet(hadPrev ? pInc.reduce((a, r) => a + r.amount_egp, 0) - pExp.reduce((a, r) => a + r.amount_egp, 0) : null);
   }, [range]);
 
   useEffect(() => {
     load();
   }, [load, props.version]);
 
-  const total = rows.reduce((a, r) => a + r.amount_egp, 0);
-  const bySource = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const r of rows) m.set(r.source, (m.get(r.source) ?? 0) + r.amount_egp);
-    return [...m.entries()].sort((a, b) => b[1] - a[1]);
-  }, [rows]);
-  const colorOf = useMemo(() => {
-    const m = new Map<string, string>();
-    bySource.forEach(([name], i) => m.set(name, PALETTE[i % PALETTE.length]));
-    return m;
-  }, [bySource]);
-  const topShare = total > 0 && bySource.length ? bySource[0][1] / total : 0;
-  const delta = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
+  const incomeRows = useMemo(() => rows.filter((r) => r.kind === 'in'), [rows]);
+  const expenseRows = useMemo(() => rows.filter((r) => r.kind === 'out'), [rows]);
+  const received = incomeRows.reduce((a, r) => a + r.egp, 0);
+  const spent = expenseRows.reduce((a, r) => a + r.egp, 0);
+  const net = received - spent;
+  const kept = received > 0 ? Math.round((net / received) * 100) : null;
+  const delta = prevNet === null ? null : net - prevNet;
 
-  const remove = (r: Income) => {
-    Alert.alert('Delete entry?', `${formatMoney(r.amount, r.currency)} from ${r.source}`, [
+  const bySource = useMemo(() => group(incomeRows), [incomeRows]);
+  const byCategory = useMemo(() => group(expenseRows), [expenseRows]);
+  const sourceColor = useMemo(() => new Map(bySource.map(([n], i) => [n, INCOME_PALETTE[i % INCOME_PALETTE.length]])), [bySource]);
+  const categoryColor = useMemo(() => new Map(byCategory.map(([n], i) => [n, SPEND_PALETTE[i % SPEND_PALETTE.length]])), [byCategory]);
+  const topShare = received > 0 && bySource.length ? bySource[0][1] / received : 0;
+
+  const visible = filter === 'All' ? rows : filter === 'Income' ? incomeRows : expenseRows;
+
+  const remove = (r: Row) => {
+    Alert.alert(r.kind === 'in' ? 'Delete income?' : 'Delete expense?', `${formatMoney(r.amount, r.currency)} · ${r.label}`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await deleteIncome(r.id);
+          if (r.kind === 'in') await deleteIncome(r.id);
+          else await deleteExpense(r.id);
           props.bump();
         },
       },
@@ -99,102 +164,138 @@ export default function IncomeScreen(props: {
       </View>
 
       <GlowCard style={{ marginBottom: 14 }}>
-        <Eyebrow style={{ color: colors.brass }}>Received</Eyebrow>
+        <Eyebrow style={{ color: colors.brass }}>Net · what you kept</Eyebrow>
         <View style={styles.heroRow}>
-          <Serif size={52}>{compactMoney(total)}</Serif>
+          <Serif size={52} style={net < 0 ? { color: colors.bad } : undefined}>
+            {net < 0 ? '−' : ''}
+            {compactMoney(Math.abs(net))}
+          </Serif>
           <Text style={styles.heroUnit}>EGP</Text>
         </View>
         {delta !== null && (
           <View style={[styles.delta, { backgroundColor: delta >= 0 ? colors.goodSoft : colors.badSoft }]}>
             <Icon name={delta >= 0 ? 'arrow-up-right' : 'arrow-down-right'} size={13} color={delta >= 0 ? colors.good : colors.bad} />
             <Text style={[styles.deltaText, { color: delta >= 0 ? colors.good : colors.bad }]}>
-              {Math.abs(delta)}% vs last month
+              {delta >= 0 ? '+' : '−'}
+              {formatMoney(Math.abs(delta))} vs last month
             </Text>
           </View>
         )}
-        {bySource.length > 0 && (
-          <>
-            <View style={styles.stack}>
-              {bySource.map(([name, amt]) => (
-                <View key={name} style={{ flex: amt, backgroundColor: colorOf.get(name), marginRight: 2 }} />
-              ))}
-            </View>
-            <View style={styles.depRow}>
-              <Icon
-                name={topShare >= 0.7 ? 'alert-triangle' : 'shield'}
-                size={14}
-                color={topShare >= 0.7 ? colors.warn : colors.good}
-              />
-              <Text style={[styles.depText, { color: topShare >= 0.7 ? colors.warn : colors.good }]}>
-                {Math.round(topShare * 100)}% from {bySource[0][0]}
-                {topShare >= 0.7 ? '. Too dependent on one source.' : '. Healthy spread.'}
-              </Text>
-            </View>
-          </>
+        <View style={styles.statsRow}>
+          <View style={styles.stat}>
+            <Text style={[styles.statNum, { color: colors.good }]}>{compactMoney(received)}</Text>
+            <Text style={styles.statLabel}>Received</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <Text style={[styles.statNum, { color: colors.bad }]}>{compactMoney(spent)}</Text>
+            <Text style={styles.statLabel}>Spent</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.stat}>
+            <Text style={[styles.statNum, kept !== null && kept < 0 && { color: colors.bad }]}>{kept === null ? '–' : `${kept}%`}</Text>
+            <Text style={styles.statLabel}>Kept</Text>
+          </View>
+        </View>
+        {received > 0 && (
+          <View style={styles.spendTrack}>
+            <View style={[styles.spendFill, { width: `${Math.min(100, (spent / received) * 100)}%`, backgroundColor: spent > received ? colors.bad : colors.warn }]} />
+          </View>
+        )}
+        {received > 0 && (
+          <Text style={styles.spendNote}>
+            {spent > received
+              ? `Spent ${formatMoney(spent - received)} more than you received`
+              : `Spent ${Math.round((spent / received) * 100)}% of what came in`}
+          </Text>
         )}
       </GlowCard>
 
       {bySource.length > 0 && (
-        <View style={styles.card}>
-          <Eyebrow style={{ marginBottom: 12 }}>By source</Eyebrow>
-          {bySource.map(([name, amt], i) => (
-            <View key={name} style={[styles.sourceRow, i === bySource.length - 1 && { borderBottomWidth: 0 }]}>
-              <View style={[styles.swatch, { backgroundColor: colorOf.get(name) }]} />
-              <Text style={styles.sourceName} numberOfLines={1}>
-                {name}
-              </Text>
-              <Text style={styles.sourcePct}>{Math.round((amt / total) * 100)}%</Text>
-              <Text style={styles.sourceAmt}>{formatMoney(amt)}</Text>
-            </View>
-          ))}
+        <Breakdown title="Income by source" items={bySource} colorOf={sourceColor}>
+          <View style={styles.depRow}>
+            <Icon name={topShare >= 0.7 ? 'alert-triangle' : 'shield'} size={14} color={topShare >= 0.7 ? colors.warn : colors.good} />
+            <Text style={[styles.depText, { color: topShare >= 0.7 ? colors.warn : colors.good }]}>
+              {Math.round(topShare * 100)}% from {bySource[0][0]}
+              {topShare >= 0.7 ? '. Too dependent on one source.' : '. Healthy spread.'}
+            </Text>
+          </View>
+        </Breakdown>
+      )}
+
+      {byCategory.length > 0 && (
+        <View style={{ marginTop: 12 }}>
+          <Breakdown title="Spending by category" items={byCategory} colorOf={categoryColor} />
         </View>
       )}
 
-      {rows.length > 0 && <Eyebrow style={{ marginTop: 22, marginBottom: 10, marginLeft: 2 }}>Entries · hold to delete</Eyebrow>}
+      {rows.length > 0 && (
+        <>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 20, marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+            <Chip label="All" count={rows.length} active={filter === 'All'} color={colors.brass} onPress={() => setFilter('All')} />
+            <Chip label="Income" count={incomeRows.length} active={filter === 'Income'} color={colors.good} onPress={() => setFilter('Income')} />
+            <Chip label="Expenses" count={expenseRows.length} active={filter === 'Expenses'} color={colors.bad} onPress={() => setFilter('Expenses')} />
+          </ScrollView>
+          <Eyebrow style={{ marginTop: 14, marginBottom: 10, marginLeft: 2 }}>Hold an entry to delete it</Eyebrow>
+        </>
+      )}
     </View>
   );
 
   return (
     <View style={{ flex: 1 }}>
       <FlatList
-        data={rows}
-        keyExtractor={(r) => String(r.id)}
+        data={visible}
+        keyExtractor={(r) => `${r.kind}-${r.id}`}
         ListHeaderComponent={header}
         contentContainerStyle={{ paddingBottom: props.bottomSpace + 70 }}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <View style={styles.emptyIcon}>
-              <Icon name="trending-up" size={26} color={colors.brass} />
+          rows.length === 0 ? (
+            <View style={styles.empty}>
+              <View style={styles.emptyIcon}>
+                <Icon name="repeat" size={26} color={colors.brass} />
+              </View>
+              <Serif size={26}>Nothing logged yet</Serif>
+              <Text style={styles.emptyText}>Log money the day it lands and spending the day it leaves. Net works itself out.</Text>
             </View>
-            <Serif size={26}>No income yet</Serif>
-            <Text style={styles.emptyText}>Log money the day it lands. The picture of where it comes from builds itself.</Text>
-          </View>
+          ) : (
+            <Text style={[styles.emptyText, { paddingHorizontal: 40 }]}>Nothing in this filter this month.</Text>
+          )
         }
-        renderItem={({ item }) => (
-          <Scale onLongPress={() => remove(item)} style={{ paddingHorizontal: 20 }}>
-            <View style={styles.entry}>
-              <View style={[styles.entryIcon, { backgroundColor: `${colorOf.get(item.source) ?? colors.brass}1F` }]}>
-                <Icon name="arrow-down-left" size={16} color={colorOf.get(item.source) ?? colors.brass} />
+        renderItem={({ item }) => {
+          const isIn = item.kind === 'in';
+          const tint = (isIn ? sourceColor.get(item.label) : categoryColor.get(item.label)) ?? (isIn ? colors.good : colors.bad);
+          return (
+            <Scale onLongPress={() => remove(item)} style={{ paddingHorizontal: 20 }}>
+              <View style={styles.entry}>
+                <View style={[styles.entryIcon, { backgroundColor: `${tint}1F` }]}>
+                  <Icon name={isIn ? 'arrow-down-left' : 'arrow-up-right'} size={16} color={tint} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.entrySource}>{item.label}</Text>
+                  <Text style={styles.entryMeta} numberOfLines={1}>
+                    {new Date(item.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    {item.note ? ` · ${item.note}` : ''}
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[styles.amount, { color: isIn ? colors.good : colors.bad }]}>
+                    {isIn ? '+' : '−'}
+                    {formatMoney(item.egp)}
+                  </Text>
+                  {item.currency !== 'EGP' && <Text style={styles.entryMeta}>{formatMoney(item.amount, item.currency)}</Text>}
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.entrySource}>{item.source}</Text>
-                <Text style={styles.entryMeta} numberOfLines={1}>
-                  {new Date(item.received_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                  {item.note ? ` · ${item.note}` : ''}
-                </Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.amount}>+{formatMoney(item.amount_egp)}</Text>
-                {item.currency !== 'EGP' && <Text style={styles.entryMeta}>{formatMoney(item.amount, item.currency)}</Text>}
-              </View>
-            </View>
-          </Scale>
-        )}
+            </Scale>
+          );
+        }}
       />
       <Fab icon="plus" bottom={props.bottomSpace} onPress={() => setFormOpen(true)} />
-      <IncomeForm
+      <MoneyForm
         visible={formOpen}
+        initialKind={filter === 'Expenses' ? 'out' : 'in'}
         sources={props.sources}
+        categories={props.categories}
         onClose={() => setFormOpen(false)}
         onSaved={() => {
           setFormOpen(false);
@@ -218,9 +319,17 @@ function dayOptions() {
   return out;
 }
 
-function IncomeForm(props: { visible: boolean; sources: string[]; onClose: () => void; onSaved: () => void }) {
+function MoneyForm(props: {
+  visible: boolean;
+  initialKind: Kind;
+  sources: string[];
+  categories: string[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const insets = useSafeAreaInsets();
-  const [source, setSource] = useState('');
+  const [kind, setKind] = useState<Kind>('in');
+  const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<Currency>('EGP');
   const [day, setDay] = useState('Today');
@@ -228,28 +337,43 @@ function IncomeForm(props: { visible: boolean; sources: string[]; onClose: () =>
   const [rate, setRate] = useState(50);
   const days = useMemo(dayOptions, [props.visible]);
 
+  const listFor = useCallback((k: Kind) => (k === 'in' ? props.sources : props.categories), [props.sources, props.categories]);
+
   useEffect(() => {
     if (!props.visible) return;
-    setSource(props.sources[0] ?? '');
+    setKind(props.initialKind);
+    setLabel(listFor(props.initialKind)[0] ?? '');
     setAmount('');
     setCurrency('EGP');
     setDay('Today');
     setNote('');
     getSettings().then((s) => setRate(s.usdRate));
-  }, [props.visible, props.sources]);
+  }, [props.visible, props.initialKind, listFor]);
+
+  const switchKind = (k: Kind) => {
+    if (k === kind) return;
+    setKind(k);
+    setLabel(listFor(k)[0] ?? '');
+  };
 
   const n = Number(amount.replace(/,/g, '')) || 0;
   const egp = currency === 'USD' ? n * rate : n;
+  const isIn = kind === 'in';
+  const accent = isIn ? colors.good : colors.bad;
 
   const save = async () => {
-    if (!source || n <= 0) {
-      Alert.alert('Missing info', 'Pick a source and enter an amount.');
+    if (!label || n <= 0) {
+      Alert.alert('Missing info', `Pick a ${isIn ? 'source' : 'category'} and enter an amount.`);
       return;
     }
     const d = new Date();
     d.setDate(d.getDate() - days.indexOf(day));
     d.setHours(12, 0, 0, 0);
-    await insertIncome({ source, amount: n, currency, amount_egp: egp, received_at: d.getTime(), note: note.trim() });
+    if (isIn) {
+      await insertIncome({ source: label, amount: n, currency, amount_egp: egp, received_at: d.getTime(), note: note.trim() });
+    } else {
+      await insertExpense({ category: label, amount: n, currency, amount_egp: egp, spent_at: d.getTime(), note: note.trim() });
+    }
     success();
     props.onSaved();
   };
@@ -257,16 +381,39 @@ function IncomeForm(props: { visible: boolean; sources: string[]; onClose: () =>
   return (
     <Modal visible={props.visible} animationType="slide" statusBarTranslucent onRequestClose={props.onClose}>
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior="height">
-        <SheetHeader title="Log income" onClose={props.onClose} onSave={save} top={insets.top} />
+        <SheetHeader title={isIn ? 'Log income' : 'Log expense'} onClose={props.onClose} onSave={save} top={insets.top} />
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
+          <View style={styles.toggle}>
+            {(['in', 'out'] as Kind[]).map((k) => {
+              const active = kind === k;
+              const c = k === 'in' ? colors.good : colors.bad;
+              return (
+                <Scale
+                  key={k}
+                  onPress={() => switchKind(k)}
+                  style={[styles.toggleItem, active && { backgroundColor: k === 'in' ? colors.goodSoft : colors.badSoft, borderColor: `${c}66` }]}
+                >
+                  <Icon name={k === 'in' ? 'arrow-down-left' : 'arrow-up-right'} size={16} color={active ? c : colors.muted} />
+                  <Text style={[styles.toggleText, active && { color: c }]}>{k === 'in' ? 'Income' : 'Expense'}</Text>
+                </Scale>
+              );
+            })}
+          </View>
           <View style={styles.preview}>
-            <Eyebrow>Amount in EGP</Eyebrow>
-            <Serif size={48} style={{ marginTop: 4 }}>
+            <Eyebrow>{isIn ? 'Coming in' : 'Going out'}</Eyebrow>
+            <Serif size={48} style={{ marginTop: 4, color: n > 0 ? accent : colors.text }}>
+              {n > 0 ? (isIn ? '+' : '−') : ''}
               {formatMoney(egp, '').trim() || '0'}
             </Serif>
-            {currency === 'USD' && <Text style={styles.entryMeta}>at {rate} EGP per USD</Text>}
+            {currency === 'USD' && <Text style={styles.entryMeta}>EGP at {rate} per USD</Text>}
           </View>
-          <Select label="Source" value={source} options={props.sources} onChange={setSource} icon="briefcase" />
+          <Select
+            label={isIn ? 'Source' : 'Category'}
+            value={label}
+            options={isIn ? props.sources : props.categories}
+            onChange={setLabel}
+            icon={isIn ? 'briefcase' : 'tag'}
+          />
           <View style={{ flexDirection: 'row' }}>
             <View style={{ flex: 1.6, marginRight: 10 }}>
               <Input label="Amount" value={amount} onChange={setAmount} keyboardType="numeric" icon="dollar-sign" placeholder="0" />
@@ -275,9 +422,9 @@ function IncomeForm(props: { visible: boolean; sources: string[]; onClose: () =>
               <Select label="Currency" value={currency} options={CURRENCIES} onChange={(v) => setCurrency(v as Currency)} />
             </View>
           </View>
-          <Select label="Received" value={day} options={days} onChange={setDay} icon="calendar" />
+          <Select label={isIn ? 'Received' : 'Spent on'} value={day} options={days} onChange={setDay} icon="calendar" />
           <Input label="Note" value={note} onChange={setNote} icon="edit-3" placeholder="Optional" />
-          <Button title="Save income" icon="check" onPress={save} style={{ marginTop: 6 }} />
+          <Button title={isIn ? 'Save income' : 'Save expense'} icon="check" onPress={save} style={{ marginTop: 6 }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
@@ -309,7 +456,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   deltaText: { fontFamily: fonts.bold, fontSize: 12, marginLeft: 5 },
-  stack: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 20 },
+  statsRow: { flexDirection: 'row', marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.line },
+  stat: { flex: 1 },
+  statNum: { color: colors.text, fontFamily: fonts.bold, fontSize: 18 },
+  statLabel: { color: colors.muted, fontFamily: fonts.medium, fontSize: 11, marginTop: 2 },
+  statDivider: { width: 1, backgroundColor: colors.line, marginHorizontal: 10 },
+  spendTrack: { height: 6, borderRadius: 3, backgroundColor: colors.goodSoft, overflow: 'hidden', marginTop: 16 },
+  spendFill: { height: 6, borderRadius: 3 },
+  spendNote: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 8 },
+  stack: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden' },
   depRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   depText: { fontFamily: fonts.semibold, fontSize: 13, marginLeft: 8, flex: 1 },
   card: {
@@ -343,7 +498,7 @@ const styles = StyleSheet.create({
   entryIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   entrySource: { color: colors.text, fontFamily: fonts.bold, fontSize: 15 },
   entryMeta: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 },
-  amount: { color: colors.good, fontFamily: fonts.bold, fontSize: 15 },
+  amount: { fontFamily: fonts.bold, fontSize: 15 },
   empty: { alignItems: 'center', paddingHorizontal: 40, paddingTop: 30 },
   emptyIcon: {
     width: 60,
@@ -355,6 +510,26 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  toggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 4,
+    marginBottom: 16,
+  },
+  toggleItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  toggleText: { color: colors.muted, fontFamily: fonts.bold, fontSize: 15, marginLeft: 8 },
   preview: {
     alignItems: 'center',
     paddingVertical: 22,

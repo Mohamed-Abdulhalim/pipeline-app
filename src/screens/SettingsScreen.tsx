@@ -3,7 +3,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { exportBackup, pickBackup, restoreBackup } from '../backup';
 import { Button, Eyebrow, Icon, IconName, Input, Scale, Select, Serif, success } from '../components/ui';
-import { addSource, getSettings, removeSource, saveSetting } from '../db';
+import { addCategory, addSource, getSettings, removeCategory, removeSource, saveSetting } from '../db';
 import { rescheduleAll } from '../notify';
 import { colors, fonts } from '../theme';
 
@@ -26,13 +26,58 @@ function Section(props: { title: string; icon: IconName; hint?: string; children
   );
 }
 
+function ListEditor(props: {
+  items: string[];
+  noun: string;
+  placeholder: string;
+  onAdd: (name: string) => Promise<void>;
+  onRemove: (name: string) => Promise<void>;
+}) {
+  const [value, setValue] = useState('');
+
+  const add = async () => {
+    const name = value.trim();
+    if (!name) return;
+    await props.onAdd(name);
+    setValue('');
+    success();
+  };
+
+  const remove = (name: string) => {
+    Alert.alert(`Remove ${props.noun}?`, `${name} will disappear from dropdowns. Existing entries keep it.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => props.onRemove(name) },
+    ]);
+  };
+
+  return (
+    <>
+      {props.items.map((s, i) => (
+        <View key={s} style={[styles.sourceRow, i === 0 && { borderTopWidth: 0 }]}>
+          <View style={styles.sourceBadge}>
+            <Text style={styles.sourceInitial}>{s.charAt(0).toUpperCase()}</Text>
+          </View>
+          <Text style={styles.sourceName}>{s}</Text>
+          <Scale onPress={() => remove(s)} style={styles.removeBtn}>
+            <Icon name="x" size={15} color={colors.muted} />
+          </Scale>
+        </View>
+      ))}
+      <View style={{ marginTop: 16 }}>
+        <Input label={`New ${props.noun}`} value={value} onChange={setValue} icon="plus-circle" placeholder={props.placeholder} />
+        <Button title={`Add ${props.noun}`} icon="plus" variant="ghost" onPress={add} />
+      </View>
+    </>
+  );
+}
+
 export default function SettingsScreen(props: {
   version: number;
   sources: string[];
+  categories: string[];
   bump: () => void;
   bottomSpace: number;
 }) {
-  const [newSource, setNewSource] = useState('');
   const [followup, setFollowup] = useState('3 days');
   const [rate, setRate] = useState('50');
 
@@ -42,29 +87,6 @@ export default function SettingsScreen(props: {
       setRate(String(s.usdRate));
     });
   }, [props.version]);
-
-  const add = async () => {
-    const name = newSource.trim();
-    if (!name) return;
-    await addSource(name);
-    setNewSource('');
-    success();
-    props.bump();
-  };
-
-  const remove = (name: string) => {
-    Alert.alert('Remove source?', `${name} will disappear from dropdowns. Existing entries keep it.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          await removeSource(name);
-          props.bump();
-        },
-      },
-    ]);
-  };
 
   const changeFollowup = async (v: string) => {
     setFollowup(v);
@@ -97,9 +119,10 @@ export default function SettingsScreen(props: {
     try {
       const data = await pickBackup();
       if (!data) return;
+      const exp = data.expenses?.length ?? 0;
       Alert.alert(
         'Replace all data?',
-        `This backup has ${data.items.length} items and ${data.income.length} income entries. Everything currently in the app will be replaced.`,
+        `This backup has ${data.items.length} pipeline items, ${data.income.length} income entries and ${exp} expenses. Everything currently in the app will be replaced.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -123,21 +146,35 @@ export default function SettingsScreen(props: {
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 8, paddingBottom: props.bottomSpace + 20 }} keyboardShouldPersistTaps="handled">
       <Section title="Income sources" icon="briefcase" hint="These fill every Source dropdown in the app.">
-        {props.sources.map((s, i) => (
-          <View key={s} style={[styles.sourceRow, i === 0 && { borderTopWidth: 0 }]}>
-            <View style={styles.sourceBadge}>
-              <Text style={styles.sourceInitial}>{s.charAt(0).toUpperCase()}</Text>
-            </View>
-            <Text style={styles.sourceName}>{s}</Text>
-            <Scale onPress={() => remove(s)} style={styles.removeBtn}>
-              <Icon name="x" size={15} color={colors.muted} />
-            </Scale>
-          </View>
-        ))}
-        <View style={{ marginTop: 16 }}>
-          <Input label="New source" value={newSource} onChange={setNewSource} icon="plus-circle" placeholder="e.g. Upwork" />
-          <Button title="Add source" icon="plus" variant="ghost" onPress={add} />
-        </View>
+        <ListEditor
+          items={props.sources}
+          noun="source"
+          placeholder="e.g. Upwork"
+          onAdd={async (n) => {
+            await addSource(n);
+            props.bump();
+          }}
+          onRemove={async (n) => {
+            await removeSource(n);
+            props.bump();
+          }}
+        />
+      </Section>
+
+      <Section title="Expense categories" icon="tag" hint="These fill the Category dropdown when you log an expense.">
+        <ListEditor
+          items={props.categories}
+          noun="category"
+          placeholder="e.g. Internet"
+          onAdd={async (n) => {
+            await addCategory(n);
+            props.bump();
+          }}
+          onRemove={async (n) => {
+            await removeCategory(n);
+            props.bump();
+          }}
+        />
       </Section>
 
       <Section title="Follow-ups" icon="bell" hint="You get a reminder when an open lead sits untouched this long.">

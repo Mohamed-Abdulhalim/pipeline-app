@@ -6,7 +6,7 @@
 
 **Every income stream I have, in one place on my phone.**
 
-Leads, applications, clients, and the money that actually lands, tracked in one small Android app I built for myself.
+Leads, applications, clients, the money that lands, and the money that leaves, tracked in one small Android app I built for myself.
 
 [![Android](https://img.shields.io/badge/Android-APK-3DDC84?logo=android&logoColor=white)](https://github.com/Mohamed-Abdulhalim/pipeline-app/releases/latest/download/pipeline.apk)
 [![Expo](https://img.shields.io/badge/Expo-SDK%2058-000020?logo=expo&logoColor=white)](https://expo.dev)
@@ -25,7 +25,7 @@ I'm a freelance developer, which means my work comes from a lot of directions at
 
 The problem was that all of it lived in different places. Some leads sat in one platform's inbox, some in email, some in WhatsApp, and some only in my head. Good opportunities went cold because I forgot to follow up, and at the end of the month I couldn't tell you which source was actually paying off.
 
-So I made the app I wanted: one place to log every opportunity, a nudge when something has been sitting too long, and an honest picture of where my money comes from.
+So I made the app I wanted: one place to log every opportunity, a nudge when something has been sitting too long, and an honest picture of where my money comes from and where it goes.
 
 ## ✨ What it does
 
@@ -42,12 +42,14 @@ Every lead, job application, gig, or client conversation goes in as an entry and
 ### 🔔 Follow-up reminders
 If an open entry goes untouched for a few days (I pick how many), the phone reminds me. Mark it followed up and the clock resets.
 
-### 📈 Income
-Log money the day it arrives, in EGP or USD (converted at a rate I set).
+### 💰 Money
+Log money the day it arrives and spending the day it leaves, in EGP or USD (converted at a rate I set).
 
-- Monthly total, compared with last month
-- A breakdown bar of how much came from each source
-- A plain warning when one source makes up 70% or more of the month. That's the number I actually care about.
+- **Net** at the top: what came in minus what went out, compared with last month
+- Received, spent, and the percentage I actually kept
+- Income broken down by source, with a plain warning when one source makes up 70% or more of the month. That's the number I care about most.
+- Spending broken down by category (rent, bills, food, and whatever else I add)
+- One timeline of every entry, filterable to income or expenses
 
 ### 💾 Backup
 Everything lives on the phone in SQLite. No account, no server, no sign-up. Export a JSON backup whenever you want and restore it on any phone.
@@ -103,8 +105,8 @@ src/
   screens/
     PipelineScreen.tsx   The pipeline board
     ItemForm.tsx         Add and edit entries
-    IncomeScreen.tsx     Monthly income and source breakdown
-    SettingsScreen.tsx   Sources, reminders, currency, backup
+    IncomeScreen.tsx     Money tab: income, expenses, net, breakdowns
+    SettingsScreen.tsx   Sources, categories, reminders, currency, backup
 ```
 
 ## 🙌 Using it yourself

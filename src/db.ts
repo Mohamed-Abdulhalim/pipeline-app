@@ -32,10 +32,22 @@ export type Income = {
   note: string;
 };
 
+export type Expense = {
+  id: number;
+  category: string;
+  amount: number;
+  currency: Currency;
+  amount_egp: number;
+  spent_at: number;
+  note: string;
+};
+
 export type Settings = {
   followupDays: number;
   usdRate: number;
 };
+
+export const DEFAULT_CATEGORIES = ['Rent', 'Bills', 'Food', 'Transport', 'Family', 'Health', 'Subscriptions', 'Other'];
 
 const db = SQLite.openDatabaseSync('pipeline.db');
 
@@ -73,11 +85,70 @@ export async function initDb(): Promise<void> {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL,
+      amount REAL NOT NULL,
+      currency TEXT NOT NULL,
+      amount_egp REAL NOT NULL,
+      spent_at INTEGER NOT NULL,
+      note TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS categories (
+      name TEXT PRIMARY KEY,
+      sort INTEGER NOT NULL DEFAULT 0
+    );
   `);
   const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM sources');
   if (!count || count.c === 0) {
     await db.runAsync('INSERT INTO sources (name, sort) VALUES (?, ?)', 'Salary', 0);
   }
+  const cats = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM categories');
+  if (!cats || cats.c === 0) await seedCategories(DEFAULT_CATEGORIES);
+}
+
+async function seedCategories(names: string[]): Promise<void> {
+  for (const [i, name] of names.entries()) {
+    await db.runAsync('INSERT OR IGNORE INTO categories (name, sort) VALUES (?, ?)', name, i);
+  }
+}
+
+export async function getCategories(): Promise<string[]> {
+  const rows = await db.getAllAsync<{ name: string }>('SELECT name FROM categories ORDER BY sort, name');
+  return rows.map((r) => r.name);
+}
+
+export async function addCategory(name: string): Promise<void> {
+  const max = await db.getFirstAsync<{ m: number | null }>('SELECT MAX(sort) AS m FROM categories');
+  await db.runAsync('INSERT OR IGNORE INTO categories (name, sort) VALUES (?, ?)', name, (max?.m ?? 0) + 1);
+}
+
+export async function removeCategory(name: string): Promise<void> {
+  await db.runAsync('DELETE FROM categories WHERE name = ?', name);
+}
+
+export async function getExpensesBetween(from: number, to: number): Promise<Expense[]> {
+  return db.getAllAsync<Expense>(
+    'SELECT * FROM expenses WHERE spent_at >= ? AND spent_at < ? ORDER BY spent_at DESC',
+    from,
+    to,
+  );
+}
+
+export async function insertExpense(input: Omit<Expense, 'id'>): Promise<void> {
+  await db.runAsync(
+    'INSERT INTO expenses (category, amount, currency, amount_egp, spent_at, note) VALUES (?, ?, ?, ?, ?, ?)',
+    input.category,
+    input.amount,
+    input.currency,
+    input.amount_egp,
+    input.spent_at,
+    input.note,
+  );
+}
+
+export async function deleteExpense(id: number): Promise<void> {
+  await db.runAsync('DELETE FROM expenses WHERE id = ?', id);
 }
 
 export async function getSources(): Promise<string[]> {
@@ -193,29 +264,48 @@ export async function deleteIncome(id: number): Promise<void> {
 
 export type Backup = {
   app: 'pipeline';
-  version: 1;
+  version: number;
   exported_at: number;
   items: Item[];
   income: Income[];
+  expenses?: Expense[];
   sources: string[];
+  categories?: string[];
   settings: Settings;
 };
 
 export async function exportAll(): Promise<Backup> {
   return {
     app: 'pipeline',
-    version: 1,
+    version: 2,
     exported_at: Date.now(),
     items: await db.getAllAsync<Item>('SELECT * FROM items'),
     income: await db.getAllAsync<Income>('SELECT * FROM income'),
+    expenses: await db.getAllAsync<Expense>('SELECT * FROM expenses'),
     sources: await getSources(),
+    categories: await getCategories(),
     settings: await getSettings(),
   };
 }
 
 export async function importAll(data: Backup): Promise<void> {
   await db.withTransactionAsync(async () => {
-    await db.execAsync('DELETE FROM items; DELETE FROM income; DELETE FROM sources; DELETE FROM settings;');
+    await db.execAsync(
+      'DELETE FROM items; DELETE FROM income; DELETE FROM expenses; DELETE FROM sources; DELETE FROM categories; DELETE FROM settings;',
+    );
+    await seedCategories(data.categories?.length ? data.categories : DEFAULT_CATEGORIES);
+    for (const e of data.expenses ?? []) {
+      await db.runAsync(
+        'INSERT INTO expenses (id, category, amount, currency, amount_egp, spent_at, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        e.id,
+        e.category,
+        e.amount,
+        e.currency,
+        e.amount_egp,
+        e.spent_at,
+        e.note,
+      );
+    }
     for (const [i, name] of data.sources.entries()) {
       await db.runAsync('INSERT OR IGNORE INTO sources (name, sort) VALUES (?, ?)', name, i);
     }

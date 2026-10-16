@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Eyebrow, Icon, IconName, Scale, Serif } from './src/components/ui';
-import { getSources, initDb } from './src/db';
+import { getCategories, getSources, initDb } from './src/db';
 import { rescheduleAll, setupNotifications } from './src/notify';
 import IncomeScreen from './src/screens/IncomeScreen';
 import PipelineScreen from './src/screens/PipelineScreen';
@@ -27,7 +27,7 @@ SplashScreen.setOptions({ fade: true, duration: 300 });
 type Tab = 'Pipeline' | 'Income' | 'Settings';
 const TABS: { key: Tab; icon: IconName; title: string }[] = [
   { key: 'Pipeline', icon: 'layers', title: 'Pipeline' },
-  { key: 'Income', icon: 'trending-up', title: 'Income' },
+  { key: 'Income', icon: 'trending-up', title: 'Money' },
   { key: 'Settings', icon: 'sliders', title: 'Settings' },
 ];
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -95,6 +95,7 @@ function Shell() {
   const [tab, setTab] = useState<Tab>('Pipeline');
   const [version, setVersion] = useState(0);
   const [sources, setSources] = useState<string[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const content = useRef(new Animated.Value(0)).current;
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
@@ -103,6 +104,7 @@ function Shell() {
     (async () => {
       await initDb();
       setSources(await getSources());
+      setCategories(await getCategories());
       setDbReady(true);
     })();
   }, []);
@@ -120,7 +122,9 @@ function Shell() {
   }, [ready, content]);
 
   useEffect(() => {
-    if (dbReady) getSources().then(setSources);
+    if (!dbReady) return;
+    getSources().then(setSources);
+    getCategories().then(setCategories);
   }, [version, dbReady]);
 
   const finishIntro = useCallback(() => setIntro(false), []);
@@ -128,7 +132,7 @@ function Shell() {
   if (!ready) return <View style={styles.root} />;
 
   const tabBarHeight = 66 + Math.max(insets.bottom, 12);
-  const screenProps = { version, sources, bump, bottomSpace: tabBarHeight + 16 };
+  const screenProps = { version, sources, categories, bump, bottomSpace: tabBarHeight + 16 };
   const now = new Date();
   const current = TABS.find((t) => t.key === tab)!;
 
