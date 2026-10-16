@@ -37,7 +37,15 @@ jobs:
 
       - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
+        shell: bash
+        run: |
+          set -o pipefail
+          if ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a 2>&1 | tee build.log; then
+            exit 0
+          fi
+          msg=$( (grep -A14 "What went wrong" build.log || tail -40 build.log) | head -60 | sed -e 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=Gradle failure::${msg}"
+          exit 1
 
       - run: cp android/app/build/outputs/apk/release/app-release.apk pipeline.apk
 
