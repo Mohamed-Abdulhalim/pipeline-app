@@ -63,6 +63,10 @@ export async function cancelItem(notifId: string | null): Promise<void> {
 export async function rescheduleAll(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();
   const [items, settings] = await Promise.all([getItems(), getSettings()]);
+  if (settings.showPipeline === 0) {
+    for (const item of items) if (item.notif_id) await setItemNotif(item.id, null);
+    return;
+  }
   for (const item of items) {
     await scheduleFor({ ...item, notif_id: null }, settings.followupDays);
   }

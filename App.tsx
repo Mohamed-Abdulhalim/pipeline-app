@@ -95,6 +95,7 @@ function Shell() {
   const [dbReady, setDbReady] = useState(false);
   const [intro, setIntro] = useState(true);
   const [tab, setTab] = useState<Tab>('Pipeline');
+  const [showPipeline, setShowPipeline] = useState(true);
   const [version, setVersion] = useState(0);
   const [sources, setSources] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -119,6 +120,9 @@ function Shell() {
       await initDb();
       setSources(await getSources());
       setCategories(await getCategories());
+      const s = await getSettings();
+      setShowPipeline(s.showPipeline === 1);
+      if (s.showPipeline !== 1) setTab('Income');
       setDbReady(true);
     })();
   }, []);
@@ -139,6 +143,11 @@ function Shell() {
     if (!dbReady) return;
     getSources().then(setSources);
     getCategories().then(setCategories);
+    getSettings().then((s) => {
+      const on = s.showPipeline === 1;
+      setShowPipeline(on);
+      if (!on) setTab((t) => (t === 'Pipeline' ? 'Income' : t));
+    });
   }, [version, dbReady]);
 
   const finishIntro = useCallback(() => setIntro(false), []);
@@ -148,7 +157,8 @@ function Shell() {
   const tabBarHeight = 66 + Math.max(insets.bottom, 12);
   const screenProps = { version, sources, categories, bump, bottomSpace: tabBarHeight + 16 };
   const now = new Date();
-  const current = TABS.find((t) => t.key === tab)!;
+  const tabs = TABS.filter((t) => showPipeline || t.key !== 'Pipeline');
+  const current = tabs.find((t) => t.key === tab) ?? tabs[0];
 
   return (
     <View style={styles.root}>
@@ -173,14 +183,14 @@ function Shell() {
           <Image source={require('./assets/mark.png')} style={styles.headerMark} />
         </View>
         <View style={{ flex: 1 }}>
-          {tab === 'Pipeline' && <PipelineScreen {...screenProps} />}
+          {tab === 'Pipeline' && showPipeline && <PipelineScreen {...screenProps} />}
           {tab === 'Income' && <IncomeScreen {...screenProps} />}
           {tab === 'Savings' && <SavingsScreen {...screenProps} />}
           {tab === 'Settings' && <SettingsScreen {...screenProps} />}
         </View>
         <View style={[styles.tabWrap, { paddingBottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">
           <View style={styles.tabBar}>
-            {TABS.map((t) => {
+            {tabs.map((t) => {
               const active = t.key === tab;
               return (
                 <Scale key={t.key} style={[styles.tab, active && styles.tabActive]} onPress={() => setTab(t.key)}>

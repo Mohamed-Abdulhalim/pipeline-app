@@ -39,6 +39,8 @@ Every lead, job application, gig, or client conversation goes in as an entry and
 - The top card shows the total value of everything still open, plus win rate and wins this month
 - A **Follow up** filter shows only what I've been ignoring
 
+Not in a job-hunting phase? The whole Pipeline tab can be switched off in Settings. Entries stay saved and reminders pause until it's back.
+
 ### 🔔 Follow-up reminders
 If an open entry goes untouched for a few days (I pick how many), the phone reminds me. Mark it followed up and the clock resets.
 

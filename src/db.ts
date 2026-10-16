@@ -59,6 +59,7 @@ export type Settings = {
   followupDays: number;
   usdRate: number;
   showHidden: number;
+  showPipeline: number;
 };
 
 export const DEFAULT_CATEGORIES = ['Rent', 'Bills', 'Food', 'Transport', 'Family', 'Health', 'Subscriptions', 'Other'];
@@ -235,6 +236,7 @@ export async function getSettings(): Promise<Settings> {
     followupDays: Number(map.get('followupDays') ?? 3),
     usdRate: Number(map.get('usdRate') ?? 50),
     showHidden: Number(map.get('showHidden') ?? 0),
+    showPipeline: Number(map.get('showPipeline') ?? 1),
   };
 }
 
@@ -419,5 +421,6 @@ export async function importAll(data: Backup): Promise<void> {
     await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?)', 'followupDays', String(data.settings.followupDays));
     await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?)', 'usdRate', String(data.settings.usdRate));
     await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?)', 'showHidden', String(data.settings.showHidden ?? 0));
+    await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?)', 'showPipeline', String(data.settings.showPipeline ?? 1));
   });
 }

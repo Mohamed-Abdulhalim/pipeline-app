@@ -82,14 +82,24 @@ export default function SettingsScreen(props: {
   const [followup, setFollowup] = useState('3 days');
   const [rate, setRate] = useState('50');
   const [showHidden, setShowHidden] = useState(false);
+  const [showPipeline, setShowPipeline] = useState(true);
 
   useEffect(() => {
     getSettings().then((s) => {
       setFollowup(`${s.followupDays} ${s.followupDays === 1 ? 'day' : 'days'}`);
       setRate(String(s.usdRate));
       setShowHidden(s.showHidden === 1);
+      setShowPipeline(s.showPipeline === 1);
     });
   }, [props.version]);
+
+  const togglePipeline = async (v: boolean) => {
+    setShowPipeline(v);
+    await saveSetting('showPipeline', v ? 1 : 0);
+    await rescheduleAll().catch(() => undefined);
+    success();
+    props.bump();
+  };
 
   const toggleHidden = async (v: boolean) => {
     if (v) {
@@ -168,6 +178,21 @@ export default function SettingsScreen(props: {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 8, paddingBottom: props.bottomSpace + 20 }} keyboardShouldPersistTaps="handled">
+      <Section title="Tabs" icon="layout" hint="Hiding the Pipeline tab keeps every entry safe and pauses its follow-up reminders until you turn it back on.">
+        <View style={styles.switchRow}>
+          <View style={styles.switchIcon}>
+            <Icon name="layers" size={17} color={showPipeline ? colors.brass : colors.muted} />
+          </View>
+          <Text style={styles.switchText}>Show Pipeline tab</Text>
+          <Switch
+            value={showPipeline}
+            onValueChange={togglePipeline}
+            trackColor={{ false: colors.surfaceHi, true: colors.brassLo }}
+            thumbColor={showPipeline ? colors.brassHi : colors.muted}
+          />
+        </View>
+      </Section>
+
       <Section title="Income sources" icon="briefcase" hint="These fill every Source dropdown in the app.">
         <ListEditor
           items={props.sources}
@@ -219,9 +244,11 @@ export default function SettingsScreen(props: {
         </View>
       </Section>
 
+      {showPipeline && (
       <Section title="Follow-ups" icon="bell" hint="You get a reminder when an open lead sits untouched this long.">
         <Select label="Remind me after" value={followup} options={FOLLOWUP_OPTIONS} onChange={changeFollowup} icon="clock" />
       </Section>
+      )}
 
       <Section title="Currency" icon="repeat" hint="USD amounts are converted to EGP at this rate when you save them.">
         <Input label="EGP per 1 USD" value={rate} onChange={setRate} keyboardType="numeric" icon="dollar-sign" />
