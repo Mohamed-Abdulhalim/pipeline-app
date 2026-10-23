@@ -161,7 +161,10 @@ export function Input(props: {
   return (
     <View style={s.field}>
       <Eyebrow style={s.fieldLabel}>{props.label}</Eyebrow>
-      <View style={[s.inputWrap, focused && s.inputFocused, props.multiline && s.multiline]}>
+      <Pressable
+        onPress={() => kb.ref.current?.focus()}
+        style={[s.inputWrap, focused && s.inputFocused, props.multiline && s.multiline]}
+      >
         {props.icon && (
           <View style={s.inputIcon}>
             <Icon name={props.icon} size={16} color={focused ? colors.brass : colors.muted} />
@@ -169,7 +172,7 @@ export function Input(props: {
         )}
         <TextInput
           ref={kb.ref}
-          style={[s.input, props.multiline && { textAlignVertical: 'top', minHeight: 86 }]}
+          style={[s.input, props.multiline && { textAlignVertical: 'top', minHeight: 86 }, { pointerEvents: focused ? 'auto' : 'none' }]}
           value={props.value}
           onChangeText={props.onChange}
           placeholder={props.placeholder}
@@ -185,7 +188,7 @@ export function Input(props: {
           onBlur={() => setFocused(false)}
           autoCapitalize={props.keyboardType === 'url' ? 'none' : 'sentences'}
         />
-      </View>
+      </Pressable>
     </View>
   );
 }

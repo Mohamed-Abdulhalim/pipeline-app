@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Eyebrow, formatMoney, Icon, IconName, KeyboardScroll, Scale, SheetHeader, success, useKeyboardFocus } from '../components/ui';
 import { getPlanOrCopy, monthKey, PlanKind, savePlan } from '../db';
@@ -25,13 +25,13 @@ function AmountRow(props: { label: string; value: string; onChange: (v: string) 
   const kb = useKeyboardFocus();
   const [focused, setFocused] = useState(false);
   return (
-    <View style={[styles.row, focused && { borderColor: props.accent }]}>
+    <Pressable onPress={() => kb.ref.current?.focus()} style={[styles.row, focused && { borderColor: props.accent }]}>
       <Text style={styles.rowLabel} numberOfLines={1}>
         {props.label}
       </Text>
       <TextInput
         ref={kb.ref}
-        style={styles.rowInput}
+        style={[styles.rowInput, { pointerEvents: focused ? 'auto' : 'none' }]}
         value={props.value}
         onChangeText={props.onChange}
         keyboardType="numeric"
@@ -46,7 +46,7 @@ function AmountRow(props: { label: string; value: string; onChange: (v: string) 
         onBlur={() => setFocused(false)}
       />
       <Text style={styles.rowUnit}>EGP</Text>
-    </View>
+    </Pressable>
   );
 }
 
