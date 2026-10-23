@@ -53,6 +53,9 @@ Log money the day it arrives and spending the day it leaves, in EGP or USD (conv
 - Spending broken down by category (rent, bills, food, and whatever else I add)
 - One timeline of every entry, filterable to income or expenses
 
+### 🗓️ Monthly plan
+Before a month starts, I split the salary I'm expecting across spending categories and savings, with a live "left to assign" number so every pound has a job. During the month, each category shows spent vs planned and turns amber, then red, as it gets close or goes over. Spending in categories I didn't plan for shows up on its own line. Each new month starts as a copy of the last plan, so I only change what's different.
+
 ### 🏦 Savings
 Money I put aside comes straight out of that month's net, so the Money tab shows what's actually left to spend.
 

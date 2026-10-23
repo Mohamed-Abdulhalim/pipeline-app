@@ -1,9 +1,20 @@
 import Constants from 'expo-constants';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { ReactNode, useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Image, StyleSheet, Switch, Text, View } from 'react-native';
 import { exportBackup, pickBackup, restoreBackup } from '../backup';
-import { Button, Eyebrow, Icon, IconName, Input, Scale, Select, Serif, success } from '../components/ui';
+import {
+  Button,
+  Eyebrow,
+  Icon,
+  IconName,
+  Input,
+  KeyboardScroll,
+  Scale,
+  Select,
+  Serif,
+  success,
+} from '../components/ui';
 import { addCategory, addSource, getSettings, removeCategory, removeSource, saveSetting } from '../db';
 import { rescheduleAll } from '../notify';
 import { colors, fonts } from '../theme';
@@ -177,7 +188,7 @@ export default function SettingsScreen(props: {
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 8, paddingBottom: props.bottomSpace + 20 }} keyboardShouldPersistTaps="handled">
+    <KeyboardScroll contentContainerStyle={{ padding: 20, paddingTop: 8, paddingBottom: props.bottomSpace + 20 }}>
       <Section title="Tabs" icon="layout" hint="Hiding the Pipeline tab keeps every entry safe and pauses its follow-up reminders until you turn it back on.">
         <View style={styles.switchRow}>
           <View style={styles.switchIcon}>
@@ -269,7 +280,7 @@ export default function SettingsScreen(props: {
         <Text style={styles.footerName}>السقفيه</Text>
         <Text style={styles.version}>Version {Constants.expoConfig?.version ?? '1.0'}</Text>
       </View>
-    </ScrollView>
+    </KeyboardScroll>
   );
 }
 

@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Button,
@@ -11,6 +11,7 @@ import {
   GlowCard,
   Icon,
   Input,
+  KeyboardScroll,
   Scale,
   Select,
   Serif,
@@ -26,10 +27,15 @@ import {
   getIncomeBetween,
   getSavingsBetween,
   getSettings,
+  getPlan,
+  getPlanOrCopy,
   insertExpense,
   insertIncome,
+  monthKey,
+  PlanLine,
   savingsNet,
 } from '../db';
+import PlanSheet, { PlanWhich } from './PlanSheet';
 import { colors, fonts } from '../theme';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -85,6 +91,122 @@ function Breakdown(props: { title: string; items: [string, number][]; colorOf: M
   );
 }
 
+function Bar(props: { value: number; max: number; color: string }) {
+  const pct = props.max > 0 ? Math.min(100, (props.value / props.max) * 100) : 0;
+  return (
+    <View style={styles.planTrack}>
+      <View style={[styles.planFill, { width: `${pct}%`, backgroundColor: props.color }]} />
+    </View>
+  );
+}
+
+function PlanCard(props: {
+  lines: PlanLine[];
+  carried: boolean;
+  editable: boolean;
+  received: number;
+  savedVisible: number;
+  byCategory: [string, number][];
+  onEdit: (w: PlanWhich) => void;
+}) {
+  const income = props.lines.filter((l) => l.kind === 'income').reduce((a, l) => a + l.amount, 0);
+  const budgets = props.lines.filter((l) => l.kind === 'expense');
+  const saving = props.lines.find((l) => l.kind === 'saving')?.amount ?? 0;
+  const spentMap = new Map(props.byCategory);
+  const budgeted = new Set(budgets.map((b) => b.label));
+  const unplanned = props.byCategory.filter(([n]) => !budgeted.has(n)).reduce((a, [, v]) => a + v, 0);
+  const totalBudget = budgets.reduce((a, b) => a + b.amount, 0);
+  const totalSpent = budgets.reduce((a, b) => a + (spentMap.get(b.label) ?? 0), 0) + unplanned;
+  const budgetLeft = totalBudget - totalSpent;
+
+  if (!props.lines.length) {
+    if (!props.editable) return null;
+    return (
+      <View style={[styles.card, { marginBottom: 12 }]}>
+        <Eyebrow style={{ marginBottom: 6 }}>Monthly plan</Eyebrow>
+        <Text style={styles.planEmpty}>Split your expected salary across spending and savings before the month starts, then track it here.</Text>
+        <View style={{ flexDirection: 'row', marginTop: 14 }}>
+          <Button title="Plan this month" variant="ghost" onPress={() => props.onEdit('this')} style={{ flex: 1, marginRight: 8 }} />
+          <Button title="Plan next month" icon="calendar" onPress={() => props.onEdit('next')} style={{ flex: 1 }} />
+        </View>
+      </View>
+    );
+  }
+
+  const tone = (spent: number, max: number) => (spent > max ? colors.bad : spent >= max * 0.8 ? colors.warn : colors.good);
+
+  return (
+    <View style={[styles.card, { marginBottom: 12 }]}>
+      <View style={styles.planHead}>
+        <Eyebrow style={{ flex: 1 }}>Plan{props.carried ? ' · carried over' : ''}</Eyebrow>
+        {props.editable && (
+          <Scale onPress={() => props.onEdit('this')} style={styles.planEdit}>
+            <Icon name="edit-2" size={13} color={colors.brass} />
+            <Text style={styles.planEditText}>Edit</Text>
+          </Scale>
+        )}
+      </View>
+
+      <View style={styles.planRow}>
+        <Text style={styles.planName}>Income</Text>
+        <Text style={styles.planNums}>
+          {formatMoney(props.received, '').trim()} / {formatMoney(income)}
+        </Text>
+      </View>
+      <Bar value={props.received} max={income} color={colors.good} />
+
+      {budgets.map((b) => {
+        const spent = spentMap.get(b.label) ?? 0;
+        return (
+          <View key={b.label}>
+            <View style={styles.planRow}>
+              <Text style={styles.planName} numberOfLines={1}>
+                {b.label}
+              </Text>
+              <Text style={[styles.planNums, spent > b.amount && { color: colors.bad }]}>
+                {formatMoney(spent, '').trim()} / {formatMoney(b.amount)}
+              </Text>
+            </View>
+            <Bar value={spent} max={b.amount} color={tone(spent, b.amount)} />
+          </View>
+        );
+      })}
+
+      {unplanned > 0 && (
+        <View style={styles.planRow}>
+          <Text style={[styles.planName, { color: colors.warn }]}>Unplanned spending</Text>
+          <Text style={[styles.planNums, { color: colors.warn }]}>{formatMoney(unplanned)}</Text>
+        </View>
+      )}
+
+      {saving > 0 && (
+        <>
+          <View style={styles.planRow}>
+            <Text style={styles.planName}>Savings</Text>
+            <Text style={styles.planNums}>
+              {formatMoney(props.savedVisible, '').trim()} / {formatMoney(saving)}
+            </Text>
+          </View>
+          <Bar value={props.savedVisible} max={saving} color={colors.brass} />
+        </>
+      )}
+
+      {totalBudget > 0 && (
+        <View style={[styles.planFooter, { backgroundColor: budgetLeft >= 0 ? colors.goodSoft : colors.badSoft }]}>
+          <Icon name={budgetLeft >= 0 ? 'check-circle' : 'alert-triangle'} size={14} color={budgetLeft >= 0 ? colors.good : colors.bad} />
+          <Text style={[styles.planFooterText, { color: budgetLeft >= 0 ? colors.good : colors.bad }]}>
+            {budgetLeft >= 0 ? `${formatMoney(budgetLeft)} left in your spending budget` : `${formatMoney(-budgetLeft)} over your spending budget`}
+          </Text>
+        </View>
+      )}
+
+      {props.editable && (
+        <Button title="Plan next month" icon="calendar" variant="ghost" onPress={() => props.onEdit('next')} style={{ marginTop: 12 }} />
+      )}
+    </View>
+  );
+}
+
 export default function MoneyScreen(props: {
   version: number;
   sources: string[];
@@ -99,6 +221,10 @@ export default function MoneyScreen(props: {
   const [savedVisible, setSavedVisible] = useState(0);
   const [filter, setFilter] = useState<Filter>('All');
   const [formOpen, setFormOpen] = useState(false);
+  const [plan, setPlan] = useState<PlanLine[]>([]);
+  const [planCarried, setPlanCarried] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [planWhich, setPlanWhich] = useState<PlanWhich>('next');
   const range = useMemo(() => monthRange(offset), [offset]);
 
   const load = useCallback(async () => {
@@ -111,6 +237,15 @@ export default function MoneyScreen(props: {
       getSavingsBetween(range.prev.getTime(), range.start.getTime()),
       getSettings(),
     ]);
+    const key = monthKey(range.start);
+    if (offset >= 0) {
+      const p = await getPlanOrCopy(key);
+      setPlan(p.lines);
+      setPlanCarried(p.copiedFrom !== null);
+    } else {
+      setPlan(await getPlan(key));
+      setPlanCarried(false);
+    }
     setSavedAll(savingsNet(sav, true));
     setSavedVisible(savingsNet(sav, settings.showHidden === 1));
     const merged: Row[] = [
@@ -124,7 +259,7 @@ export default function MoneyScreen(props: {
         ? pInc.reduce((a, r) => a + r.amount_egp, 0) - pExp.reduce((a, r) => a + r.amount_egp, 0) - savingsNet(pSav, true)
         : null,
     );
-  }, [range]);
+  }, [range, offset]);
 
   useEffect(() => {
     load();
@@ -229,6 +364,19 @@ export default function MoneyScreen(props: {
         )}
       </GlowCard>
 
+      <PlanCard
+        lines={plan}
+        carried={planCarried}
+        editable={offset === 0}
+        received={received}
+        savedVisible={savedVisible}
+        byCategory={byCategory}
+        onEdit={(w) => {
+          setPlanWhich(w);
+          setPlanOpen(true);
+        }}
+      />
+
       {bySource.length > 0 && (
         <Breakdown title="Income by source" items={bySource} colorOf={sourceColor}>
           <View style={styles.depRow}>
@@ -309,6 +457,17 @@ export default function MoneyScreen(props: {
         }}
       />
       <Fab icon="plus" bottom={props.bottomSpace} onPress={() => setFormOpen(true)} />
+      <PlanSheet
+        visible={planOpen}
+        initial={planWhich}
+        sources={props.sources}
+        categories={props.categories}
+        onClose={() => setPlanOpen(false)}
+        onSaved={() => {
+          setPlanOpen(false);
+          props.bump();
+        }}
+      />
       <MoneyForm
         visible={formOpen}
         initialKind={filter === 'Expenses' ? 'out' : 'in'}
@@ -398,9 +557,9 @@ function MoneyForm(props: {
 
   return (
     <Modal visible={props.visible} animationType="slide" statusBarTranslucent onRequestClose={props.onClose}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior="height">
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <SheetHeader title={isIn ? 'Log income' : 'Log expense'} onClose={props.onClose} onSave={save} top={insets.top} />
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
+        <KeyboardScroll contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
           <View style={styles.toggle}>
             {(['in', 'out'] as Kind[]).map((k) => {
               const active = kind === k;
@@ -443,8 +602,8 @@ function MoneyForm(props: {
           <Select label={isIn ? 'Received' : 'Spent on'} value={day} options={days} onChange={setDay} icon="calendar" />
           <Input label="Note" value={note} onChange={setNote} icon="edit-3" placeholder="Optional" />
           <Button title={isIn ? 'Save income' : 'Save expense'} icon="check" onPress={save} style={{ marginTop: 6 }} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardScroll>
+      </View>
     </Modal>
   );
 }
@@ -483,6 +642,24 @@ const styles = StyleSheet.create({
   spendFill: { height: 6, borderRadius: 3 },
   spendNote: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 8 },
   stack: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden' },
+  planHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  planEdit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.brassSoft,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  planEditText: { color: colors.brass, fontFamily: fonts.bold, fontSize: 12, marginLeft: 5 },
+  planRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 6 },
+  planName: { color: colors.text, fontFamily: fonts.semibold, fontSize: 14, flex: 1, marginRight: 10 },
+  planNums: { color: colors.textDim, fontFamily: fonts.bold, fontSize: 13 },
+  planTrack: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceHi, overflow: 'hidden' },
+  planFill: { height: 6, borderRadius: 3 },
+  planFooter: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 14 },
+  planFooterText: { fontFamily: fonts.semibold, fontSize: 13, marginLeft: 8, flex: 1 },
+  planEmpty: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, lineHeight: 19 },
   depRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   depText: { fontFamily: fonts.semibold, fontSize: 13, marginLeft: 8, flex: 1 },
   card: {

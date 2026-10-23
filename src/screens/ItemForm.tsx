@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Modal, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, Input, Select, SheetHeader, success } from '../components/ui';
+import {
+  Button,
+  Input,
+  KeyboardScroll,
+  Select,
+  SheetHeader,
+  success,
+} from '../components/ui';
 import {
   CURRENCIES,
   Currency,
@@ -105,12 +112,10 @@ export default function ItemForm(props: {
 
   return (
     <Modal visible={props.visible} animationType="slide" statusBarTranslucent onRequestClose={props.onClose}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior="height">
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <SheetHeader title={props.item ? 'Edit entry' : 'New entry'} onClose={props.onClose} onSave={save} top={insets.top} />
-        <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}
-          keyboardShouldPersistTaps="handled"
-        >
+        <KeyboardScroll
+          contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
           <Input label="Title" value={title} onChange={setTitle} icon="type" placeholder="n8n automation for a dental clinic" />
           <Select
             label="Stage"
@@ -145,8 +150,8 @@ export default function ItemForm(props: {
           ) : (
             <Button title="Add to pipeline" icon="plus" onPress={save} style={{ marginTop: 6 }} />
           )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardScroll>
+      </View>
     </Modal>
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, FlatList, Modal, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Button,
@@ -10,6 +10,7 @@ import {
   GlowCard,
   Icon,
   Input,
+  KeyboardScroll,
   Scale,
   Select,
   Serif,
@@ -267,9 +268,9 @@ function SavingForm(props: { visible: boolean; onClose: () => void; onSaved: () 
 
   return (
     <Modal visible={props.visible} animationType="slide" statusBarTranslucent onRequestClose={props.onClose}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior="height">
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <SheetHeader title={isSave ? 'Put aside' : 'Withdraw'} onClose={props.onClose} onSave={save} top={insets.top} />
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
+        <KeyboardScroll contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
           <View style={styles.toggle}>
             {(['save', 'withdraw'] as SavingKind[]).map((k) => {
               const active = kind === k;
@@ -321,8 +322,8 @@ function SavingForm(props: { visible: boolean; onClose: () => void; onSaved: () 
             />
           </Scale>
           <Button title={isSave ? 'Save' : 'Withdraw'} icon="check" onPress={save} style={{ marginTop: 6 }} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardScroll>
+      </View>
     </Modal>
   );
 }

@@ -1,16 +1,23 @@
 import Feather from '@expo/vector-icons/Feather';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ComponentProps, ReactNode, useState } from 'react';
+import { ComponentProps, createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
+  Keyboard,
   KeyboardTypeOptions,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  ScrollView,
+  ScrollViewInstance,
+  ScrollViewProps,
   Pressable,
   StyleProp,
   StyleSheet,
   Text,
   TextInput,
+  TextInputInstance,
   TextStyle,
   View,
   ViewStyle,
@@ -65,6 +72,81 @@ export function Scale(props: {
   );
 }
 
+type FocusHandler = (input: TextInputInstance | null) => void;
+const KeyboardScrollContext = createContext<FocusHandler | null>(null);
+
+export function useKeyboardFocus() {
+  const ref = useRef<TextInputInstance>(null);
+  const report = useContext(KeyboardScrollContext);
+  const onFocus = useCallback(() => report?.(ref.current), [report]);
+  return { ref, onFocus };
+}
+
+export function KeyboardScroll(props: ScrollViewProps & { children: ReactNode }) {
+  const { children, onScroll, ...rest } = props;
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const offset = useRef(0);
+  const keyboardTop = useRef<number | null>(null);
+  const focused = useRef<TextInputInstance | null>(null);
+  const [space, setSpace] = useState(0);
+
+  const reveal = useCallback(() => {
+    const input = focused.current;
+    const top = keyboardTop.current;
+    if (!input || top === null || !scrollRef.current) return;
+    input.measureInWindow((_x: number, y: number, _w: number, h: number) => {
+      const limit = top - 24;
+      if (y + h > limit) {
+        scrollRef.current?.scrollTo({ y: offset.current + (y + h - limit), animated: true });
+      } else if (y < 90) {
+        scrollRef.current?.scrollTo({ y: Math.max(0, offset.current - (90 - y)), animated: true });
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      keyboardTop.current = e.endCoordinates.screenY;
+      setSpace(e.endCoordinates.height);
+      setTimeout(reveal, 60);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      keyboardTop.current = null;
+      setSpace(0);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [reveal]);
+
+  const report = useCallback<FocusHandler>(
+    (input) => {
+      focused.current = input;
+      if (keyboardTop.current !== null) setTimeout(reveal, 60);
+    },
+    [reveal],
+  );
+
+  return (
+    <KeyboardScrollContext.Provider value={report}>
+      <ScrollView
+        ref={scrollRef}
+        keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={16}
+        onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+          offset.current = e.nativeEvent.contentOffset.y;
+          onScroll?.(e);
+        }}
+        {...rest}
+      >
+        {children}
+        <View style={{ height: space }} />
+      </ScrollView>
+    </KeyboardScrollContext.Provider>
+  );
+}
+
 export function Input(props: {
   label: string;
   value: string;
@@ -75,6 +157,7 @@ export function Input(props: {
   icon?: IconName;
 }) {
   const [focused, setFocused] = useState(false);
+  const kb = useKeyboardFocus();
   return (
     <View style={s.field}>
       <Eyebrow style={s.fieldLabel}>{props.label}</Eyebrow>
@@ -85,6 +168,7 @@ export function Input(props: {
           </View>
         )}
         <TextInput
+          ref={kb.ref}
           style={[s.input, props.multiline && { textAlignVertical: 'top', minHeight: 86 }]}
           value={props.value}
           onChangeText={props.onChange}
@@ -94,7 +178,10 @@ export function Input(props: {
           multiline={props.multiline}
           selectionColor={colors.brass}
           cursorColor={colors.brass}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            kb.onFocus();
+          }}
           onBlur={() => setFocused(false)}
           autoCapitalize={props.keyboardType === 'url' ? 'none' : 'sentences'}
         />

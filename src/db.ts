@@ -55,6 +55,15 @@ export type Saving = {
   hidden: number;
 };
 
+export type PlanKind = 'income' | 'expense' | 'saving';
+
+export type PlanLine = {
+  month: string;
+  kind: PlanKind;
+  label: string;
+  amount: number;
+};
+
 export type Settings = {
   followupDays: number;
   usdRate: number;
@@ -112,6 +121,13 @@ export async function initDb(): Promise<void> {
     CREATE TABLE IF NOT EXISTS categories (
       name TEXT PRIMARY KEY,
       sort INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS plan_lines (
+      month TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      label TEXT NOT NULL,
+      amount REAL NOT NULL,
+      PRIMARY KEY (month, kind, label)
     );
     CREATE TABLE IF NOT EXISTS savings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -207,6 +223,37 @@ export async function setSavingHidden(id: number, hidden: boolean): Promise<void
 
 export async function deleteSaving(id: number): Promise<void> {
   await db.runAsync('DELETE FROM savings WHERE id = ?', id);
+}
+
+export function monthKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export async function getPlan(month: string): Promise<PlanLine[]> {
+  return db.getAllAsync<PlanLine>('SELECT * FROM plan_lines WHERE month = ? ORDER BY kind, label', month);
+}
+
+export async function getPlanOrCopy(month: string): Promise<{ lines: PlanLine[]; copiedFrom: string | null }> {
+  const own = await getPlan(month);
+  if (own.length) return { lines: own, copiedFrom: null };
+  const prev = await db.getFirstAsync<{ month: string }>(
+    'SELECT month FROM plan_lines WHERE month < ? ORDER BY month DESC LIMIT 1',
+    month,
+  );
+  if (!prev) return { lines: [], copiedFrom: null };
+  const lines = await getPlan(prev.month);
+  return { lines: lines.map((l) => ({ ...l, month })), copiedFrom: prev.month };
+}
+
+export async function savePlan(month: string, lines: Omit<PlanLine, 'month'>[]): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM plan_lines WHERE month = ?', month);
+    for (const l of lines) {
+      if (l.amount > 0) {
+        await db.runAsync('INSERT INTO plan_lines (month, kind, label, amount) VALUES (?, ?, ?, ?)', month, l.kind, l.label, l.amount);
+      }
+    }
+  });
 }
 
 export function savingsNet(rows: Saving[], includeHidden: boolean): number {
@@ -336,6 +383,7 @@ export type Backup = {
   income: Income[];
   expenses?: Expense[];
   savings?: Saving[];
+  plans?: PlanLine[];
   sources: string[];
   categories?: string[];
   settings: Settings;
@@ -344,12 +392,13 @@ export type Backup = {
 export async function exportAll(): Promise<Backup> {
   return {
     app: 'pipeline',
-    version: 3,
+    version: 4,
     exported_at: Date.now(),
     items: await db.getAllAsync<Item>('SELECT * FROM items'),
     income: await db.getAllAsync<Income>('SELECT * FROM income'),
     expenses: await db.getAllAsync<Expense>('SELECT * FROM expenses'),
     savings: await db.getAllAsync<Saving>('SELECT * FROM savings'),
+    plans: await db.getAllAsync<PlanLine>('SELECT * FROM plan_lines'),
     sources: await getSources(),
     categories: await getCategories(),
     settings: await getSettings(),
@@ -359,9 +408,12 @@ export async function exportAll(): Promise<Backup> {
 export async function importAll(data: Backup): Promise<void> {
   await db.withTransactionAsync(async () => {
     await db.execAsync(
-      'DELETE FROM items; DELETE FROM income; DELETE FROM expenses; DELETE FROM savings; DELETE FROM sources; DELETE FROM categories; DELETE FROM settings;',
+      'DELETE FROM items; DELETE FROM income; DELETE FROM expenses; DELETE FROM savings; DELETE FROM plan_lines; DELETE FROM sources; DELETE FROM categories; DELETE FROM settings;',
     );
     await seedCategories(data.categories?.length ? data.categories : DEFAULT_CATEGORIES);
+    for (const l of data.plans ?? []) {
+      await db.runAsync('INSERT OR REPLACE INTO plan_lines (month, kind, label, amount) VALUES (?, ?, ?, ?)', l.month, l.kind, l.label, l.amount);
+    }
     for (const v of data.savings ?? []) {
       await db.runAsync(
         'INSERT INTO savings (id, kind, amount, currency, amount_egp, saved_at, note, hidden) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
