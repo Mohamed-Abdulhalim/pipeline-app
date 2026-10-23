@@ -113,6 +113,10 @@ export function KeyboardScroll(props: ScrollViewProps & { children: ReactNode })
     const hide = Keyboard.addListener('keyboardDidHide', () => {
       keyboardTop.current = null;
       setSpace(0);
+      try {
+        focused.current?.blur();
+      } catch {}
+      focused.current = null;
     });
     return () => {
       show.remove();
@@ -156,38 +160,43 @@ export function Input(props: {
   multiline?: boolean;
   icon?: IconName;
 }) {
-  const [focused, setFocused] = useState(false);
+  const [editing, setEditing] = useState(false);
   const kb = useKeyboardFocus();
+  const box = [s.input, props.multiline && { textAlignVertical: 'top' as const, minHeight: 86 }];
   return (
     <View style={s.field}>
       <Eyebrow style={s.fieldLabel}>{props.label}</Eyebrow>
       <Pressable
-        onPress={() => kb.ref.current?.focus()}
-        style={[s.inputWrap, focused && s.inputFocused, props.multiline && s.multiline]}
+        onPress={() => setEditing(true)}
+        style={[s.inputWrap, editing && s.inputFocused, props.multiline && s.multiline]}
       >
         {props.icon && (
           <View style={s.inputIcon}>
-            <Icon name={props.icon} size={16} color={focused ? colors.brass : colors.muted} />
+            <Icon name={props.icon} size={16} color={editing ? colors.brass : colors.muted} />
           </View>
         )}
-        <TextInput
-          ref={kb.ref}
-          style={[s.input, props.multiline && { textAlignVertical: 'top', minHeight: 86 }, { pointerEvents: focused ? 'auto' : 'none' }]}
-          value={props.value}
-          onChangeText={props.onChange}
-          placeholder={props.placeholder}
-          placeholderTextColor={colors.muted}
-          keyboardType={props.keyboardType}
-          multiline={props.multiline}
-          selectionColor={colors.brass}
-          cursorColor={colors.brass}
-          onFocus={() => {
-            setFocused(true);
-            kb.onFocus();
-          }}
-          onBlur={() => setFocused(false)}
-          autoCapitalize={props.keyboardType === 'url' ? 'none' : 'sentences'}
-        />
+        {editing ? (
+          <TextInput
+            ref={kb.ref}
+            autoFocus
+            style={box}
+            value={props.value}
+            onChangeText={props.onChange}
+            placeholder={props.placeholder}
+            placeholderTextColor={colors.muted}
+            keyboardType={props.keyboardType}
+            multiline={props.multiline}
+            selectionColor={colors.brass}
+            cursorColor={colors.brass}
+            onFocus={kb.onFocus}
+            onBlur={() => setEditing(false)}
+            autoCapitalize={props.keyboardType === 'url' ? 'none' : 'sentences'}
+          />
+        ) : (
+          <Text style={[box, !props.value && { color: colors.muted }]} numberOfLines={props.multiline ? undefined : 1}>
+            {props.value || props.placeholder || ' '}
+          </Text>
+        )}
       </Pressable>
     </View>
   );

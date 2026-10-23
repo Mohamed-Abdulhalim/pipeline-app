@@ -23,28 +23,33 @@ const num = (v: string | undefined) => Number((v ?? '').replace(/,/g, '')) || 0;
 
 function AmountRow(props: { label: string; value: string; onChange: (v: string) => void; accent: string }) {
   const kb = useKeyboardFocus();
-  const [focused, setFocused] = useState(false);
+  const [editing, setEditing] = useState(false);
   return (
-    <Pressable onPress={() => kb.ref.current?.focus()} style={[styles.row, focused && { borderColor: props.accent }]}>
+    <Pressable onPress={() => setEditing(true)} style={[styles.row, editing && { borderColor: props.accent }]}>
       <Text style={styles.rowLabel} numberOfLines={1}>
         {props.label}
       </Text>
-      <TextInput
-        ref={kb.ref}
-        style={[styles.rowInput, { pointerEvents: focused ? 'auto' : 'none' }]}
-        value={props.value}
-        onChangeText={props.onChange}
-        keyboardType="numeric"
-        placeholder="0"
-        placeholderTextColor={colors.muted}
-        selectionColor={props.accent}
-        cursorColor={props.accent}
-        onFocus={() => {
-          setFocused(true);
-          kb.onFocus();
-        }}
-        onBlur={() => setFocused(false)}
-      />
+      {editing ? (
+        <TextInput
+          ref={kb.ref}
+          autoFocus
+          selectTextOnFocus
+          style={styles.rowInput}
+          value={props.value}
+          onChangeText={props.onChange}
+          keyboardType="numeric"
+          placeholder="0"
+          placeholderTextColor={colors.muted}
+          selectionColor={props.accent}
+          cursorColor={props.accent}
+          onFocus={kb.onFocus}
+          onBlur={() => setEditing(false)}
+        />
+      ) : (
+        <Text style={[styles.rowInput, styles.rowValue, !props.value && { color: colors.muted }]} numberOfLines={1}>
+          {props.value || '0'}
+        </Text>
+      )}
       <Text style={styles.rowUnit}>EGP</Text>
     </Pressable>
   );
@@ -247,6 +252,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingVertical: 8,
   },
+  rowValue: { paddingVertical: 10 },
   rowUnit: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 12, marginLeft: 6 },
   hint: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18, marginBottom: 16 },
 });
