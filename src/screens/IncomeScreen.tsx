@@ -28,6 +28,7 @@ import {
   getSavingsBetween,
   getSettings,
   getPlan,
+  addMonths,
   getPlanOrCopy,
   insertExpense,
   insertIncome,
@@ -35,7 +36,8 @@ import {
   PlanLine,
   savingsNet,
 } from '../db';
-import PlanSheet, { PlanWhich } from './PlanSheet';
+import MonthsAheadSheet from './MonthsAheadSheet';
+import PlanSheet from './PlanSheet';
 import { colors, fonts } from '../theme';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -107,8 +109,11 @@ function PlanCard(props: {
   received: number;
   savedVisible: number;
   byCategory: [string, number][];
-  onEdit: (w: PlanWhich) => void;
+  onEdit: (month: string) => void;
+  onAhead: () => void;
 }) {
+  const thisMonth = monthKey(new Date());
+  const nextMonth = addMonths(thisMonth, 1);
   const income = props.lines.filter((l) => l.kind === 'income').reduce((a, l) => a + l.amount, 0);
   const budgets = props.lines.filter((l) => l.kind === 'expense');
   const saving = props.lines.find((l) => l.kind === 'saving')?.amount ?? 0;
@@ -126,8 +131,8 @@ function PlanCard(props: {
         <Eyebrow style={{ marginBottom: 6 }}>Monthly plan</Eyebrow>
         <Text style={styles.planEmpty}>Split your expected salary across spending and savings before the month starts, then track it here.</Text>
         <View style={{ flexDirection: 'row', marginTop: 14 }}>
-          <Button title="Plan this month" variant="ghost" onPress={() => props.onEdit('this')} style={{ flex: 1, marginRight: 8 }} />
-          <Button title="Plan next month" icon="calendar" onPress={() => props.onEdit('next')} style={{ flex: 1 }} />
+          <Button title="Plan this month" variant="ghost" onPress={() => props.onEdit(thisMonth)} style={{ flex: 1, marginRight: 8 }} />
+          <Button title="Plan ahead" icon="calendar" onPress={props.onAhead} style={{ flex: 1 }} />
         </View>
       </View>
     );
@@ -140,7 +145,7 @@ function PlanCard(props: {
       <View style={styles.planHead}>
         <Eyebrow style={{ flex: 1 }}>Plan{props.carried ? ' · carried over' : ''}</Eyebrow>
         {props.editable && (
-          <Scale onPress={() => props.onEdit('this')} style={styles.planEdit}>
+          <Scale onPress={() => props.onEdit(thisMonth)} style={styles.planEdit}>
             <Icon name="edit-2" size={13} color={colors.brass} />
             <Text style={styles.planEditText}>Edit</Text>
           </Scale>
@@ -201,7 +206,10 @@ function PlanCard(props: {
       )}
 
       {props.editable && (
-        <Button title="Plan next month" icon="calendar" variant="ghost" onPress={() => props.onEdit('next')} style={{ marginTop: 12 }} />
+        <View style={{ flexDirection: 'row', marginTop: 12 }}>
+          <Button title="Next month" icon="calendar" variant="ghost" onPress={() => props.onEdit(nextMonth)} style={{ flex: 1, marginRight: 8 }} />
+          <Button title="Months ahead" icon="list" variant="ghost" onPress={props.onAhead} style={{ flex: 1 }} />
+        </View>
       )}
     </View>
   );
@@ -224,7 +232,8 @@ export default function MoneyScreen(props: {
   const [plan, setPlan] = useState<PlanLine[]>([]);
   const [planCarried, setPlanCarried] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
-  const [planWhich, setPlanWhich] = useState<PlanWhich>('next');
+  const [planMonth, setPlanMonth] = useState(monthKey(new Date()));
+  const [aheadOpen, setAheadOpen] = useState(false);
   const range = useMemo(() => monthRange(offset), [offset]);
 
   const load = useCallback(async () => {
@@ -371,10 +380,11 @@ export default function MoneyScreen(props: {
         received={received}
         savedVisible={savedVisible}
         byCategory={byCategory}
-        onEdit={(w) => {
-          setPlanWhich(w);
+        onEdit={(m) => {
+          setPlanMonth(m);
           setPlanOpen(true);
         }}
+        onAhead={() => setAheadOpen(true)}
       />
 
       {bySource.length > 0 && (
@@ -457,9 +467,18 @@ export default function MoneyScreen(props: {
         }}
       />
       <Fab icon="plus" bottom={props.bottomSpace} onPress={() => setFormOpen(true)} />
+      <MonthsAheadSheet
+        visible={aheadOpen}
+        version={props.version}
+        onClose={() => setAheadOpen(false)}
+        onPick={(m) => {
+          setPlanMonth(m);
+          setPlanOpen(true);
+        }}
+      />
       <PlanSheet
         visible={planOpen}
-        initial={planWhich}
+        initialMonth={planMonth}
         sources={props.sources}
         categories={props.categories}
         onClose={() => setPlanOpen(false)}

@@ -256,6 +256,36 @@ export async function savePlan(month: string, lines: Omit<PlanLine, 'month'>[]):
   });
 }
 
+export function addMonths(key: string, n: number): string {
+  const y = Number(key.slice(0, 4));
+  const m = Number(key.slice(5, 7)) - 1 + n;
+  return monthKey(new Date(y, m, 1));
+}
+
+export type MonthPlan = { month: string; lines: PlanLine[]; own: boolean; from: string | null };
+
+export async function getPlansAhead(start: string, count: number): Promise<MonthPlan[]> {
+  const keys = Array.from({ length: count }, (_, i) => addMonths(start, i));
+  const all = await db.getAllAsync<PlanLine>('SELECT * FROM plan_lines WHERE month <= ? ORDER BY month', keys[keys.length - 1]);
+  const byMonth = new Map<string, PlanLine[]>();
+  for (const l of all) {
+    if (!byMonth.has(l.month)) byMonth.set(l.month, []);
+    byMonth.get(l.month)!.push(l);
+  }
+  const owned = [...byMonth.keys()].sort();
+  return keys.map((key) => {
+    const own = byMonth.get(key);
+    if (own) return { month: key, lines: own, own: true, from: null };
+    const prev = owned.filter((m) => m < key).pop();
+    if (!prev) return { month: key, lines: [], own: false, from: null };
+    return { month: key, lines: byMonth.get(prev)!.map((l) => ({ ...l, month: key })), own: false, from: prev };
+  });
+}
+
+export async function clearPlansAfter(month: string): Promise<void> {
+  await db.runAsync('DELETE FROM plan_lines WHERE month > ?', month);
+}
+
 export function savingsNet(rows: Saving[], includeHidden: boolean): number {
   return rows
     .filter((r) => includeHidden || !r.hidden)

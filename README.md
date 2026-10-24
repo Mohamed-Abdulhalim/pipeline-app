@@ -54,7 +54,7 @@ Log money the day it arrives and spending the day it leaves, in EGP or USD (conv
 - One timeline of every entry, filterable to income or expenses
 
 ### 🗓️ Monthly plan
-Before a month starts, I split the salary I'm expecting across spending categories and savings, with a live "left to assign" number so every pound has a job. During the month, each category shows spent vs planned and turns amber, then red, as it gets close or goes over. Spending in categories I didn't plan for shows up on its own line. Each new month starts as a copy of the last plan, so I only change what's different.
+Before a month starts, I split the salary I'm expecting across spending categories and savings, with a live "left to assign" number so every pound has a job. During the month, each category shows spent vs planned and turns amber, then red, as it gets close or goes over. Spending in categories I didn't plan for shows up on its own line. I can plan up to 12 months ahead from a month dropdown. A month without its own plan follows the latest planned month before it, so a raise in January carries forward on its own, while a one-off month like Ramadan or a trip can get its own plan without touching the rest. A **Months ahead** view shows all twelve at a glance, which have their own plan and which inherit one, plus projected savings if every month goes to plan.
 
 ### 🏦 Savings
 Money I put aside comes straight out of that month's net, so the Money tab shows what's actually left to spend.

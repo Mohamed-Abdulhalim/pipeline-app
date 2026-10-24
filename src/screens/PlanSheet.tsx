@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, Eyebrow, formatMoney, Icon, IconName, KeyboardScroll, Scale, SheetHeader, success, useKeyboardFocus } from '../components/ui';
-import { getPlanOrCopy, monthKey, PlanKind, savePlan } from '../db';
+import { Button, Eyebrow, formatMoney, Icon, IconName, KeyboardScroll, Select, SheetHeader, success, useKeyboardFocus } from '../components/ui';
+import { addMonths, clearPlansAfter, getPlanOrCopy, monthKey, PlanKind, savePlan } from '../db';
 import { colors, fonts } from '../theme';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-export type PlanWhich = 'this' | 'next';
+export const PLAN_HORIZON = 12;
 
-function monthOf(which: PlanWhich) {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() + (which === 'next' ? 1 : 0), 1);
-  return { key: monthKey(d), name: MONTHS[d.getMonth()] };
+export function monthName(key: string) {
+  return MONTHS[Number(key.slice(5, 7)) - 1] ?? key;
 }
 
-function monthName(key: string) {
-  return MONTHS[Number(key.slice(5, 7)) - 1] ?? key;
+export function monthLabel(key: string) {
+  return `${monthName(key)} ${key.slice(0, 4)}`;
+}
+
+export function planMonths() {
+  const start = monthKey(new Date());
+  return Array.from({ length: PLAN_HORIZON }, (_, i) => addMonths(start, i));
 }
 
 const k = (kind: PlanKind, label: string) => `${kind}|${label}`;
@@ -72,22 +75,23 @@ function Section(props: { title: string; icon: IconName; total: number; accent: 
 
 export default function PlanSheet(props: {
   visible: boolean;
-  initial: PlanWhich;
+  initialMonth: string;
   sources: string[];
   categories: string[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [which, setWhich] = useState<PlanWhich>('next');
+  const [monthKeyState, setMonthKeyState] = useState(props.initialMonth);
   const [values, setValues] = useState<Record<string, string>>({});
   const [extra, setExtra] = useState<{ income: string[]; expense: string[] }>({ income: [], expense: [] });
   const [copiedFrom, setCopiedFrom] = useState<string | null>(null);
-  const month = monthOf(which);
+  const month = { key: monthKeyState, name: monthName(monthKeyState) };
+  const options = useMemo(() => planMonths(), [props.visible]);
 
   useEffect(() => {
-    if (props.visible) setWhich(props.initial);
-  }, [props.visible, props.initial]);
+    if (props.visible) setMonthKeyState(props.initialMonth);
+  }, [props.visible, props.initialMonth]);
 
   useEffect(() => {
     if (!props.visible) return;
@@ -114,13 +118,33 @@ export default function PlanSheet(props: {
 
   const set = (key: string) => (v: string) => setValues((cur) => ({ ...cur, [key]: v.replace(/[^0-9.,]/g, '') }));
 
+  const buildLines = () => [
+    ...incomeLabels.map((label) => ({ kind: 'income' as PlanKind, label, amount: num(values[k('income', label)]) })),
+    ...expenseLabels.map((label) => ({ kind: 'expense' as PlanKind, label, amount: num(values[k('expense', label)]) })),
+    { kind: 'saving' as PlanKind, label: 'Savings', amount: saving },
+  ];
+
+  const saveAndApply = () => {
+    Alert.alert(
+      'Apply to all later months?',
+      `Every month after ${month.name} will follow this plan. Changes you made to any of those months will be replaced.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Apply',
+          onPress: async () => {
+            await savePlan(month.key, buildLines());
+            await clearPlansAfter(month.key);
+            success();
+            props.onSaved();
+          },
+        },
+      ],
+    );
+  };
+
   const save = async () => {
-    const lines = [
-      ...incomeLabels.map((label) => ({ kind: 'income' as PlanKind, label, amount: num(values[k('income', label)]) })),
-      ...expenseLabels.map((label) => ({ kind: 'expense' as PlanKind, label, amount: num(values[k('expense', label)]) })),
-      { kind: 'saving' as PlanKind, label: 'Savings', amount: saving },
-    ];
-    await savePlan(month.key, lines);
+    await savePlan(month.key, buildLines());
     success();
     props.onSaved();
   };
@@ -130,19 +154,14 @@ export default function PlanSheet(props: {
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <SheetHeader title={`Plan ${month.name}`} onClose={props.onClose} onSave={save} top={insets.top} />
         <View style={{ paddingHorizontal: 20 }}>
-          <View style={styles.toggle}>
-            {(['this', 'next'] as PlanWhich[]).map((w) => {
-              const active = which === w;
-              return (
-                <Scale key={w} onPress={() => setWhich(w)} style={[styles.toggleItem, active && styles.toggleActive]}>
-                  <Text style={[styles.toggleText, active && { color: colors.brassHi }]}>
-                    {w === 'this' ? `This month · ${monthOf('this').name}` : `Next month · ${monthOf('next').name}`}
-                  </Text>
-                </Scale>
-              );
-            })}
-          </View>
-          <View style={styles.summary}>
+          <Select
+            label="Month"
+            value={monthLabel(month.key)}
+            options={options.map(monthLabel)}
+            onChange={(v) => setMonthKeyState(options[options.map(monthLabel).indexOf(v)] ?? month.key)}
+            icon="calendar"
+          />
+          <View style={[styles.summary, { marginTop: -6 }]}>
             <View style={styles.sumCol}>
               <Text style={[styles.sumNum, { color: colors.good }]}>{formatMoney(income, '').trim()}</Text>
               <Text style={styles.sumLabel}>Expected</Text>
@@ -166,7 +185,9 @@ export default function PlanSheet(props: {
           {copiedFrom && (
             <View style={styles.banner}>
               <Icon name="copy" size={14} color={colors.brass} />
-              <Text style={styles.bannerText}>Copied from {monthName(copiedFrom)}. Change what's different and save.</Text>
+              <Text style={styles.bannerText}>
+                Following {monthName(copiedFrom)}'s plan. Change what's different and save to give {month.name} its own.
+              </Text>
             </View>
           )}
           <Section title="Expected income" icon="arrow-down-left" total={income} accent={colors.good}>
@@ -186,6 +207,13 @@ export default function PlanSheet(props: {
             Leave a field empty to skip it. Add sources and categories in Settings. Amounts are in EGP.
           </Text>
           <Button title={`Save ${month.name} plan`} icon="check" onPress={save} />
+          <Button
+            title="Save & apply to all later months"
+            icon="fast-forward"
+            variant="ghost"
+            onPress={saveAndApply}
+            style={{ marginTop: 10 }}
+          />
         </KeyboardScroll>
       </View>
     </Modal>
