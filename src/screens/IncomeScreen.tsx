@@ -28,16 +28,13 @@ import {
   getSavingsBetween,
   getSettings,
   getPlan,
-  addMonths,
-  getPlanOrCopy,
   insertExpense,
   insertIncome,
   monthKey,
   PlanLine,
   savingsNet,
 } from '../db';
-import MonthsAheadSheet from './MonthsAheadSheet';
-import PlanSheet from './PlanSheet';
+import PlanSheet, { PLAN_HORIZON } from './PlanSheet';
 import { colors, fonts } from '../theme';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -104,16 +101,14 @@ function Bar(props: { value: number; max: number; color: string }) {
 
 function PlanCard(props: {
   lines: PlanLine[];
-  carried: boolean;
   editable: boolean;
+  future: boolean;
+  month: string;
   received: number;
   savedVisible: number;
   byCategory: [string, number][];
-  onEdit: (month: string) => void;
-  onAhead: () => void;
+  onEdit: () => void;
 }) {
-  const thisMonth = monthKey(new Date());
-  const nextMonth = addMonths(thisMonth, 1);
   const income = props.lines.filter((l) => l.kind === 'income').reduce((a, l) => a + l.amount, 0);
   const budgets = props.lines.filter((l) => l.kind === 'expense');
   const saving = props.lines.find((l) => l.kind === 'saving')?.amount ?? 0;
@@ -123,16 +118,67 @@ function PlanCard(props: {
   const totalBudget = budgets.reduce((a, b) => a + b.amount, 0);
   const totalSpent = budgets.reduce((a, b) => a + (spentMap.get(b.label) ?? 0), 0) + unplanned;
   const budgetLeft = totalBudget - totalSpent;
+  const unassigned = income - totalBudget - saving;
 
   if (!props.lines.length) {
     if (!props.editable) return null;
     return (
       <View style={[styles.card, { marginBottom: 12 }]}>
-        <Eyebrow style={{ marginBottom: 6 }}>Monthly plan</Eyebrow>
-        <Text style={styles.planEmpty}>Split your expected salary across spending and savings before the month starts, then track it here.</Text>
-        <View style={{ flexDirection: 'row', marginTop: 14 }}>
-          <Button title="Plan this month" variant="ghost" onPress={() => props.onEdit(thisMonth)} style={{ flex: 1, marginRight: 8 }} />
-          <Button title="Plan ahead" icon="calendar" onPress={props.onAhead} style={{ flex: 1 }} />
+        <Eyebrow style={{ marginBottom: 6 }}>{props.month} plan</Eyebrow>
+        <Text style={styles.planEmpty}>
+          {props.future
+            ? `Nothing planned for ${props.month} yet. Split the salary you expect across spending and savings.`
+            : 'Split your expected salary across spending and savings, then track it here as the month goes.'}
+        </Text>
+        <Button title={`Plan ${props.month}`} icon="calendar" onPress={props.onEdit} style={{ marginTop: 14 }} />
+      </View>
+    );
+  }
+
+  const head = (
+    <View style={styles.planHead}>
+      <Eyebrow style={{ flex: 1 }}>{props.month} plan</Eyebrow>
+      {props.editable && (
+        <Scale onPress={props.onEdit} style={styles.planEdit}>
+          <Icon name="edit-2" size={13} color={colors.brass} />
+          <Text style={styles.planEditText}>Edit</Text>
+        </Scale>
+      )}
+    </View>
+  );
+
+  if (props.future) {
+    const leftColor = unassigned < 0 ? colors.bad : unassigned > 0 ? colors.warn : colors.good;
+    return (
+      <View style={[styles.card, { marginBottom: 12 }]}>
+        {head}
+        <View style={styles.planRow}>
+          <Text style={[styles.planName, { color: colors.good }]}>Expected income</Text>
+          <Text style={[styles.planNums, { color: colors.good }]}>{formatMoney(income)}</Text>
+        </View>
+        {budgets.map((b) => (
+          <View key={b.label} style={styles.planRow}>
+            <Text style={styles.planName} numberOfLines={1}>
+              {b.label}
+            </Text>
+            <Text style={styles.planNums}>{formatMoney(b.amount)}</Text>
+          </View>
+        ))}
+        {saving > 0 && (
+          <View style={styles.planRow}>
+            <Text style={[styles.planName, { color: colors.brassHi }]}>Savings</Text>
+            <Text style={[styles.planNums, { color: colors.brassHi }]}>{formatMoney(saving)}</Text>
+          </View>
+        )}
+        <View style={[styles.planFooter, { backgroundColor: `${leftColor}1F` }]}>
+          <Icon name={unassigned === 0 ? 'check-circle' : unassigned < 0 ? 'alert-triangle' : 'info'} size={14} color={leftColor} />
+          <Text style={[styles.planFooterText, { color: leftColor }]}>
+            {unassigned === 0
+              ? 'Every pound has a job'
+              : unassigned > 0
+                ? `${formatMoney(unassigned)} not assigned yet`
+                : `${formatMoney(-unassigned)} more assigned than you expect to earn`}
+          </Text>
         </View>
       </View>
     );
@@ -142,15 +188,7 @@ function PlanCard(props: {
 
   return (
     <View style={[styles.card, { marginBottom: 12 }]}>
-      <View style={styles.planHead}>
-        <Eyebrow style={{ flex: 1 }}>Plan{props.carried ? ' · carried over' : ''}</Eyebrow>
-        {props.editable && (
-          <Scale onPress={() => props.onEdit(thisMonth)} style={styles.planEdit}>
-            <Icon name="edit-2" size={13} color={colors.brass} />
-            <Text style={styles.planEditText}>Edit</Text>
-          </Scale>
-        )}
-      </View>
+      {head}
 
       <View style={styles.planRow}>
         <Text style={styles.planName}>Income</Text>
@@ -204,13 +242,6 @@ function PlanCard(props: {
           </Text>
         </View>
       )}
-
-      {props.editable && (
-        <View style={{ flexDirection: 'row', marginTop: 12 }}>
-          <Button title="Next month" icon="calendar" variant="ghost" onPress={() => props.onEdit(nextMonth)} style={{ flex: 1, marginRight: 8 }} />
-          <Button title="Months ahead" icon="list" variant="ghost" onPress={props.onAhead} style={{ flex: 1 }} />
-        </View>
-      )}
     </View>
   );
 }
@@ -230,11 +261,10 @@ export default function MoneyScreen(props: {
   const [filter, setFilter] = useState<Filter>('All');
   const [formOpen, setFormOpen] = useState(false);
   const [plan, setPlan] = useState<PlanLine[]>([]);
-  const [planCarried, setPlanCarried] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [planMonth, setPlanMonth] = useState(monthKey(new Date()));
-  const [aheadOpen, setAheadOpen] = useState(false);
   const range = useMemo(() => monthRange(offset), [offset]);
+  const future = offset > 0;
 
   const load = useCallback(async () => {
     const [inc, exp, pInc, pExp, sav, pSav, settings] = await Promise.all([
@@ -246,15 +276,7 @@ export default function MoneyScreen(props: {
       getSavingsBetween(range.prev.getTime(), range.start.getTime()),
       getSettings(),
     ]);
-    const key = monthKey(range.start);
-    if (offset >= 0) {
-      const p = await getPlanOrCopy(key);
-      setPlan(p.lines);
-      setPlanCarried(p.copiedFrom !== null);
-    } else {
-      setPlan(await getPlan(key));
-      setPlanCarried(false);
-    }
+    setPlan(await getPlan(monthKey(range.start)));
     setSavedAll(savingsNet(sav, true));
     setSavedVisible(savingsNet(sav, settings.showHidden === 1));
     const merged: Row[] = [
@@ -268,7 +290,7 @@ export default function MoneyScreen(props: {
         ? pInc.reduce((a, r) => a + r.amount_egp, 0) - pExp.reduce((a, r) => a + r.amount_egp, 0) - savingsNet(pSav, true)
         : null,
     );
-  }, [range, offset]);
+  }, [range]);
 
   useEffect(() => {
     load();
@@ -315,11 +337,22 @@ export default function MoneyScreen(props: {
           <Serif size={24}>{range.month}</Serif>
           <Text style={styles.year}>{range.year}</Text>
         </View>
-        <Scale onPress={() => offset < 0 && setOffset(offset + 1)} style={[styles.navBtn, offset >= 0 && { opacity: 0.3 }]}>
+        <Scale
+          onPress={() => offset < PLAN_HORIZON - 1 && setOffset(offset + 1)}
+          style={[styles.navBtn, offset >= PLAN_HORIZON - 1 && { opacity: 0.3 }]}
+        >
           <Icon name="chevron-right" size={20} color={colors.text} />
         </Scale>
       </View>
 
+      {future && (
+        <View style={styles.futureNote}>
+          <Icon name="calendar" size={14} color={colors.brass} />
+          <Text style={styles.futureText}>Upcoming month. Plan it now; actual money shows up here once it starts.</Text>
+        </View>
+      )}
+
+      {!future && (
       <GlowCard style={{ marginBottom: 14 }}>
         <Eyebrow style={{ color: colors.brass }}>Net · left to spend</Eyebrow>
         <View style={styles.heroRow}>
@@ -372,19 +405,20 @@ export default function MoneyScreen(props: {
           </Text>
         )}
       </GlowCard>
+      )}
 
       <PlanCard
         lines={plan}
-        carried={planCarried}
-        editable={offset === 0}
+        editable={offset >= 0}
+        future={future}
+        month={range.month}
         received={received}
         savedVisible={savedVisible}
         byCategory={byCategory}
-        onEdit={(m) => {
-          setPlanMonth(m);
+        onEdit={() => {
+          setPlanMonth(monthKey(range.start));
           setPlanOpen(true);
         }}
-        onAhead={() => setAheadOpen(true)}
       />
 
       {bySource.length > 0 && (
@@ -426,7 +460,7 @@ export default function MoneyScreen(props: {
         ListHeaderComponent={header}
         contentContainerStyle={{ paddingBottom: props.bottomSpace + 70 }}
         ListEmptyComponent={
-          rows.length === 0 ? (
+          future ? undefined : rows.length === 0 ? (
             <View style={styles.empty}>
               <View style={styles.emptyIcon}>
                 <Icon name="repeat" size={26} color={colors.brass} />
@@ -466,16 +500,7 @@ export default function MoneyScreen(props: {
           );
         }}
       />
-      <Fab icon="plus" bottom={props.bottomSpace} onPress={() => setFormOpen(true)} />
-      <MonthsAheadSheet
-        visible={aheadOpen}
-        version={props.version}
-        onClose={() => setAheadOpen(false)}
-        onPick={(m) => {
-          setPlanMonth(m);
-          setPlanOpen(true);
-        }}
-      />
+      {!future && <Fab icon="plus" bottom={props.bottomSpace} onPress={() => setFormOpen(true)} />}
       <PlanSheet
         visible={planOpen}
         initialMonth={planMonth}
@@ -661,6 +686,16 @@ const styles = StyleSheet.create({
   spendFill: { height: 6, borderRadius: 3 },
   spendNote: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 8 },
   stack: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden' },
+  futureNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.brassSoft,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    marginBottom: 14,
+  },
+  futureText: { color: colors.brass, fontFamily: fonts.semibold, fontSize: 13, marginLeft: 10, flex: 1, lineHeight: 18 },
   planHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   planEdit: {
     flexDirection: 'row',

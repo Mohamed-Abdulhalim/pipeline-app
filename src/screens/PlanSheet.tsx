@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, Eyebrow, formatMoney, Icon, IconName, KeyboardScroll, Select, SheetHeader, success, useKeyboardFocus } from '../components/ui';
-import { addMonths, clearPlansAfter, getPlanOrCopy, monthKey, PlanKind, savePlan } from '../db';
+import { Button, Eyebrow, formatMoney, Icon, IconName, KeyboardScroll, SheetHeader, success, useKeyboardFocus } from '../components/ui';
+import { getPlan, PlanKind, savePlan } from '../db';
 import { colors, fonts } from '../theme';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -12,14 +12,7 @@ export function monthName(key: string) {
   return MONTHS[Number(key.slice(5, 7)) - 1] ?? key;
 }
 
-export function monthLabel(key: string) {
-  return `${monthName(key)} ${key.slice(0, 4)}`;
-}
 
-export function planMonths() {
-  const start = monthKey(new Date());
-  return Array.from({ length: PLAN_HORIZON }, (_, i) => addMonths(start, i));
-}
 
 const k = (kind: PlanKind, label: string) => `${kind}|${label}`;
 const num = (v: string | undefined) => Number((v ?? '').replace(/,/g, '')) || 0;
@@ -85,9 +78,7 @@ export default function PlanSheet(props: {
   const [monthKeyState, setMonthKeyState] = useState(props.initialMonth);
   const [values, setValues] = useState<Record<string, string>>({});
   const [extra, setExtra] = useState<{ income: string[]; expense: string[] }>({ income: [], expense: [] });
-  const [copiedFrom, setCopiedFrom] = useState<string | null>(null);
   const month = { key: monthKeyState, name: monthName(monthKeyState) };
-  const options = useMemo(() => planMonths(), [props.visible]);
 
   useEffect(() => {
     if (props.visible) setMonthKeyState(props.initialMonth);
@@ -95,11 +86,10 @@ export default function PlanSheet(props: {
 
   useEffect(() => {
     if (!props.visible) return;
-    getPlanOrCopy(month.key).then(({ lines, copiedFrom: from }) => {
+    getPlan(month.key).then((lines) => {
       const v: Record<string, string> = {};
       for (const l of lines) v[k(l.kind, l.label)] = String(Math.round(l.amount));
       setValues(v);
-      setCopiedFrom(from);
       setExtra({
         income: lines.filter((l) => l.kind === 'income' && !props.sources.includes(l.label)).map((l) => l.label),
         expense: lines.filter((l) => l.kind === 'expense' && !props.categories.includes(l.label)).map((l) => l.label),
@@ -124,25 +114,6 @@ export default function PlanSheet(props: {
     { kind: 'saving' as PlanKind, label: 'Savings', amount: saving },
   ];
 
-  const saveAndApply = () => {
-    Alert.alert(
-      'Apply to all later months?',
-      `Every month after ${month.name} will follow this plan. Changes you made to any of those months will be replaced.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Apply',
-          onPress: async () => {
-            await savePlan(month.key, buildLines());
-            await clearPlansAfter(month.key);
-            success();
-            props.onSaved();
-          },
-        },
-      ],
-    );
-  };
-
   const save = async () => {
     await savePlan(month.key, buildLines());
     success();
@@ -152,16 +123,9 @@ export default function PlanSheet(props: {
   return (
     <Modal visible={props.visible} animationType="slide" statusBarTranslucent onRequestClose={props.onClose}>
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
-        <SheetHeader title={`Plan ${month.name}`} onClose={props.onClose} onSave={save} top={insets.top} />
+        <SheetHeader title={`Plan ${month.name} ${month.key.slice(0, 4)}`} onClose={props.onClose} onSave={save} top={insets.top} />
         <View style={{ paddingHorizontal: 20 }}>
-          <Select
-            label="Month"
-            value={monthLabel(month.key)}
-            options={options.map(monthLabel)}
-            onChange={(v) => setMonthKeyState(options[options.map(monthLabel).indexOf(v)] ?? month.key)}
-            icon="calendar"
-          />
-          <View style={[styles.summary, { marginTop: -6 }]}>
+          <View style={styles.summary}>
             <View style={styles.sumCol}>
               <Text style={[styles.sumNum, { color: colors.good }]}>{formatMoney(income, '').trim()}</Text>
               <Text style={styles.sumLabel}>Expected</Text>
@@ -182,14 +146,6 @@ export default function PlanSheet(props: {
           </View>
         </View>
         <KeyboardScroll contentContainerStyle={{ padding: 20, paddingTop: 14, paddingBottom: insets.bottom + 40 }}>
-          {copiedFrom && (
-            <View style={styles.banner}>
-              <Icon name="copy" size={14} color={colors.brass} />
-              <Text style={styles.bannerText}>
-                Following {monthName(copiedFrom)}'s plan. Change what's different and save to give {month.name} its own.
-              </Text>
-            </View>
-          )}
           <Section title="Expected income" icon="arrow-down-left" total={income} accent={colors.good}>
             {incomeLabels.map((l) => (
               <AmountRow key={l} label={l} value={values[k('income', l)] ?? ''} onChange={set(k('income', l))} accent={colors.good} />
@@ -207,13 +163,6 @@ export default function PlanSheet(props: {
             Leave a field empty to skip it. Add sources and categories in Settings. Amounts are in EGP.
           </Text>
           <Button title={`Save ${month.name} plan`} icon="check" onPress={save} />
-          <Button
-            title="Save & apply to all later months"
-            icon="fast-forward"
-            variant="ghost"
-            onPress={saveAndApply}
-            style={{ marginTop: 10 }}
-          />
         </KeyboardScroll>
       </View>
     </Modal>
