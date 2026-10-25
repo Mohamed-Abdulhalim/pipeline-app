@@ -1,3 +1,4 @@
+import { isAR, ls, t, tv } from '../i18n';
 import Feather from '@expo/vector-icons/Feather';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,8 +28,29 @@ import { brassGradient, colors, fonts, radius } from '../theme';
 
 export type IconName = ComponentProps<typeof Feather>['name'];
 
+const DIRECTIONAL = new Set<string>([
+  'chevron-left',
+  'chevron-right',
+  'arrow-left',
+  'arrow-right',
+  'arrow-up-right',
+  'arrow-down-right',
+  'arrow-up-left',
+  'arrow-down-left',
+  'corner-down-right',
+  'fast-forward',
+]);
+
 export function Icon(props: { name: IconName; size?: number; color?: string }) {
-  return <Feather name={props.name} size={props.size ?? 18} color={props.color ?? colors.textDim} />;
+  const flip = isAR && DIRECTIONAL.has(props.name);
+  return (
+    <Feather
+      name={props.name}
+      size={props.size ?? 18}
+      color={props.color ?? colors.textDim}
+      style={flip ? { transform: [{ scaleX: -1 }] } : undefined}
+    />
+  );
 }
 
 export function tap() {
@@ -44,7 +66,7 @@ export function Eyebrow({ children, style }: { children: ReactNode; style?: Styl
 }
 
 export function Serif({ children, size = 34, style }: { children: ReactNode; size?: number; style?: StyleProp<TextStyle> }) {
-  return <Text style={[s.serif, { fontSize: size, lineHeight: size * 1.12 }, style]}>{children}</Text>;
+  return <Text style={[s.serif, { fontSize: size, lineHeight: size * (isAR ? 1.55 : 1.12) }, style]}>{children}</Text>;
 }
 
 export function Scale(props: {
@@ -227,7 +249,7 @@ export function Select(props: {
           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
             {dotColor && <View style={[s.dot, { backgroundColor: dotColor }]} />}
             <Text style={props.value ? s.selectText : s.placeholder} numberOfLines={1}>
-              {props.value || props.placeholder || 'Choose'}
+              {props.value ? tv(props.value) : props.placeholder || t('Choose')}
             </Text>
           </View>
           <Icon name="chevron-down" size={16} color={colors.muted} />
@@ -237,11 +259,11 @@ export function Select(props: {
         <Pressable style={s.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}>
             <View style={s.handle} />
-            <Eyebrow style={{ marginBottom: 12, marginLeft: 6 }}>{props.label}</Eyebrow>
+            <Eyebrow style={{ marginBottom: 12, marginStart: 6 }}>{props.label}</Eyebrow>
             <FlatList
               data={props.options as string[]}
               keyExtractor={(o) => o}
-              ListEmptyComponent={<Text style={[s.placeholder, { padding: 12 }]}>No options yet. Add some in Settings.</Text>}
+              ListEmptyComponent={<Text style={[s.placeholder, { padding: 12 }]}>{t('No options yet. Add some in Settings.')}</Text>}
               renderItem={({ item }) => {
                 const active = item === props.value;
                 const d = props.dot?.(item);
@@ -255,7 +277,7 @@ export function Select(props: {
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                       {d && <View style={[s.dot, { backgroundColor: d }]} />}
-                      <Text style={[s.optionText, active && { color: colors.brassHi }]}>{item}</Text>
+                      <Text style={[s.optionText, active && { color: colors.brassHi }]}>{tv(item)}</Text>
                     </View>
                     {active && <Icon name="check" size={18} color={colors.brass} />}
                   </Scale>
@@ -281,7 +303,7 @@ export function Button(props: {
   const content = (
     <View style={s.btnInner}>
       {props.icon && <Icon name={props.icon} size={17} color={fg} />}
-      <Text style={[s.btnText, { color: fg }, props.icon && { marginLeft: 8 }]}>{props.title}</Text>
+      <Text style={[s.btnText, { color: fg }, props.icon && { marginStart: 8 }]}>{props.title}</Text>
     </View>
   );
   return (
@@ -364,13 +386,14 @@ export function SheetHeader(props: { title: string; onClose: () => void; onSave?
 }
 
 export function formatMoney(n: number, currency = 'EGP'): string {
-  return `${Math.round(n).toLocaleString('en-US')} ${currency}`;
+  const unit = currency ? tv(currency) : '';
+  return `${Math.round(n).toLocaleString('en-US')} ${unit}`;
 }
 
 export function compactMoney(n: number): string {
   const a = Math.abs(n);
-  if (a >= 1_000_000) return `${(n / 1_000_000).toFixed(a >= 10_000_000 ? 0 : 1)}M`;
-  if (a >= 10_000) return `${Math.round(n / 1000)}K`;
+  if (a >= 1_000_000) return `${(n / 1_000_000).toFixed(a >= 10_000_000 ? 0 : 1)}${isAR ? ' مليون' : 'M'}`;
+  if (a >= 10_000) return `${Math.round(n / 1000)}${isAR ? ' ألف' : 'K'}`;
   return Math.round(n).toLocaleString('en-US');
 }
 
@@ -379,12 +402,12 @@ const s = StyleSheet.create({
     color: colors.muted,
     fontFamily: fonts.bold,
     fontSize: 11,
-    letterSpacing: 1.6,
+    letterSpacing: ls(1.6),
     textTransform: 'uppercase',
   },
   serif: { color: colors.text, fontFamily: fonts.serif },
   field: { marginBottom: 18 },
-  fieldLabel: { marginBottom: 8, marginLeft: 2 },
+  fieldLabel: { marginBottom: 8, marginStart: 2 },
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -396,7 +419,7 @@ const s = StyleSheet.create({
   },
   inputFocused: { borderColor: colors.brass, backgroundColor: colors.surfaceHi },
   multiline: { alignItems: 'flex-start', paddingTop: 4 },
-  inputIcon: { paddingLeft: 14 },
+  inputIcon: { paddingStart: 14 },
   input: {
     flex: 1,
     paddingHorizontal: 14,
@@ -408,7 +431,7 @@ const s = StyleSheet.create({
   selectRow: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 14 },
   selectText: { color: colors.text, fontSize: 16, fontFamily: fonts.medium, flexShrink: 1 },
   placeholder: { color: colors.muted, fontSize: 16, fontFamily: fonts.medium },
-  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
+  dot: { width: 8, height: 8, borderRadius: 4, marginEnd: 10 },
   backdrop: { flex: 1, backgroundColor: 'rgba(3,4,7,0.72)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.surface,
@@ -436,7 +459,7 @@ const s = StyleSheet.create({
   btnInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
   btnGhost: { backgroundColor: colors.surfaceHi, borderWidth: 1, borderColor: colors.line },
   btnDanger: { backgroundColor: colors.badSoft, borderWidth: 1, borderColor: 'rgba(224,122,122,0.3)' },
-  btnText: { fontSize: 16, fontFamily: fonts.bold, letterSpacing: 0.2 },
+  btnText: { fontSize: 16, fontFamily: fonts.bold, letterSpacing: ls(0.2) },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius,
@@ -459,15 +482,15 @@ const s = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.line,
-    marginRight: 8,
+    marginEnd: 8,
     backgroundColor: colors.surface,
   },
-  chipDot: { width: 6, height: 6, borderRadius: 3, marginRight: 8 },
+  chipDot: { width: 6, height: 6, borderRadius: 3, marginEnd: 8 },
   chipText: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 14 },
-  chipCount: { color: colors.muted, fontFamily: fonts.bold, fontSize: 13, marginLeft: 8 },
+  chipCount: { color: colors.muted, fontFamily: fonts.bold, fontSize: 13, marginStart: 8 },
   fab: {
     position: 'absolute',
-    right: 20,
+    end: 20,
     width: 62,
     height: 62,
     borderRadius: 22,

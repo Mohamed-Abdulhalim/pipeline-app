@@ -63,6 +63,9 @@ Money I put aside comes straight out of that month's net, so the Money tab shows
 - Withdrawals put money back into that month's net when I need it
 - Any saving can be **hidden** when I create it. It still counts against net, but it stays out of sight until I flip **View hidden savings** in Settings.
 
+### 🌍 English or Arabic
+Settings has a language switch. In Arabic the whole app flips right to left, uses the Cairo typeface, and translates every label, alert and notification. My own entries stay exactly as I typed them.
+
 ### 💾 Backup
 Everything lives on the phone in SQLite. No account, no server, no sign-up. Export a JSON backup whenever you want and restore it on any phone.
 

@@ -1,3 +1,4 @@
+import { fmtDate, lh, t, tv } from '../i18n';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -69,11 +70,11 @@ export default function SavingsScreen(props: { version: number; bump: () => void
 
   const manage = (r: Saving) => {
     Alert.alert(
-      r.kind === 'save' ? 'Saving' : 'Withdrawal',
-      `${formatMoney(r.amount, r.currency)} · ${new Date(r.saved_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+      r.kind === 'save' ? t('Saving') : t('Withdrawal'),
+      `${formatMoney(r.amount, r.currency)} · ${fmtDate(r.saved_at, { year: true })}`,
       [
         {
-          text: r.hidden ? 'Unhide' : 'Hide',
+          text: r.hidden ? t('Unhide') : t('Hide'),
           onPress: async () => {
             await setSavingHidden(r.id, !r.hidden);
             success();
@@ -81,13 +82,13 @@ export default function SavingsScreen(props: { version: number; bump: () => void
           },
         },
         {
-          text: 'Delete',
+          text: t('Delete'),
           style: 'destructive',
           onPress: () =>
-            Alert.alert('Delete entry?', 'This also changes that month\'s net.', [
-              { text: 'Cancel', style: 'cancel' },
+            Alert.alert(t('Delete entry?'), t("This also changes that month's net."), [
+              { text: t('Cancel'), style: 'cancel' },
               {
-                text: 'Delete',
+                text: t('Delete'),
                 style: 'destructive',
                 onPress: async () => {
                   await deleteSaving(r.id);
@@ -96,7 +97,7 @@ export default function SavingsScreen(props: { version: number; bump: () => void
               },
             ]),
         },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('Cancel'), style: 'cancel' },
       ],
     );
   };
@@ -107,18 +108,19 @@ export default function SavingsScreen(props: { version: number; bump: () => void
         <View style={styles.banner}>
           <Icon name="eye" size={14} color={colors.brass} />
           <Text style={styles.bannerText}>
-            Showing hidden savings{hiddenCount ? ` (${hiddenCount})` : ''}. Turn this off in Settings.
+            {t('Showing hidden savings')}
+            {hiddenCount ? ` (${hiddenCount})` : ''}. {t('Turn this off in Settings.')}
           </Text>
         </View>
       )}
       <GlowCard style={{ marginBottom: 14 }}>
-        <Eyebrow style={{ color: colors.brass }}>Total saved</Eyebrow>
+        <Eyebrow style={{ color: colors.brass }}>{t('Total saved')}</Eyebrow>
         <View style={styles.heroRow}>
           <Serif size={52} style={balance < 0 ? { color: colors.bad } : undefined}>
             {balance < 0 ? '−' : ''}
             {compactMoney(Math.abs(balance))}
           </Serif>
-          <Text style={styles.heroUnit}>EGP</Text>
+          <Text style={styles.heroUnit}>{tv('EGP')}</Text>
         </View>
         {netMonth !== 0 && (
           <View style={[styles.delta, { backgroundColor: netMonth > 0 ? colors.goodSoft : colors.badSoft }]}>
@@ -132,21 +134,21 @@ export default function SavingsScreen(props: { version: number; bump: () => void
         <View style={styles.statsRow}>
           <View style={styles.stat}>
             <Text style={[styles.statNum, { color: colors.good }]}>{compactMoney(savedMonth)}</Text>
-            <Text style={styles.statLabel}>Saved this month</Text>
+            <Text style={styles.statLabel}>{t('Saved this month')}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
             <Text style={[styles.statNum, withdrawnMonth > 0 && { color: colors.bad }]}>{compactMoney(withdrawnMonth)}</Text>
-            <Text style={styles.statLabel}>Withdrawn</Text>
+            <Text style={styles.statLabel}>{t('Withdrawn')}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
             <Text style={styles.statNum}>{rate === null ? '–' : `${rate}%`}</Text>
-            <Text style={styles.statLabel}>Of income</Text>
+            <Text style={styles.statLabel}>{t('Of income')}</Text>
           </View>
         </View>
       </GlowCard>
-      {visible.length > 0 && <Eyebrow style={{ marginTop: 8, marginBottom: 10, marginLeft: 2 }}>History · tap to hide or delete</Eyebrow>}
+      {visible.length > 0 && <Eyebrow style={{ marginTop: 8, marginBottom: 10, marginStart: 2 }}>{t('History · tap to hide or delete')}</Eyebrow>}
     </View>
   );
 
@@ -162,8 +164,8 @@ export default function SavingsScreen(props: { version: number; bump: () => void
             <View style={styles.emptyIcon}>
               <Icon name="archive" size={26} color={colors.brass} />
             </View>
-            <Serif size={26}>Nothing saved yet</Serif>
-            <Text style={styles.emptyText}>Every amount you put aside comes out of that month's net, so what's left is what you can actually spend.</Text>
+            <Serif size={26}>{t('Nothing saved yet')}</Serif>
+            <Text style={styles.emptyText}>{t("Every amount you put aside comes out of that month's net, so what's left is what you can actually spend.")}</Text>
           </View>
         }
         renderItem={({ item }) => {
@@ -177,16 +179,16 @@ export default function SavingsScreen(props: { version: number; bump: () => void
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={styles.entryTitle}>{isSave ? 'Saved' : 'Withdrawn'}</Text>
+                    <Text style={styles.entryTitle}>{isSave ? t('Saved') : t('Withdrawn')}</Text>
                     {!!item.hidden && (
                       <View style={styles.hiddenBadge}>
                         <Icon name="eye-off" size={11} color={colors.muted} />
-                        <Text style={styles.hiddenText}>Hidden</Text>
+                        <Text style={styles.hiddenText}>{t('Hidden')}</Text>
                       </View>
                     )}
                   </View>
                   <Text style={styles.entryMeta} numberOfLines={1}>
-                    {new Date(item.saved_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {fmtDate(item.saved_at, { year: true })}
                     {item.note ? ` · ${item.note}` : ''}
                   </Text>
                 </View>
@@ -221,7 +223,7 @@ function dayOptions() {
     const d = new Date();
     d.setDate(d.getDate() - i);
     out.push(
-      i === 0 ? 'Today' : i === 1 ? 'Yesterday' : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
+      i === 0 ? t('Today') : i === 1 ? t('Yesterday') : fmtDate(d, { weekday: true }),
     );
   }
   return out;
@@ -232,7 +234,7 @@ function SavingForm(props: { visible: boolean; onClose: () => void; onSaved: () 
   const [kind, setKind] = useState<SavingKind>('save');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<Currency>('EGP');
-  const [day, setDay] = useState('Today');
+  const [day, setDay] = useState(t('Today'));
   const [note, setNote] = useState('');
   const [hidden, setHidden] = useState(false);
   const [rate, setRate] = useState(50);
@@ -243,7 +245,7 @@ function SavingForm(props: { visible: boolean; onClose: () => void; onSaved: () 
     setKind('save');
     setAmount('');
     setCurrency('EGP');
-    setDay('Today');
+    setDay(t('Today'));
     setNote('');
     setHidden(false);
     getSettings().then((s) => setRate(s.usdRate));
@@ -255,7 +257,7 @@ function SavingForm(props: { visible: boolean; onClose: () => void; onSaved: () 
 
   const save = async () => {
     if (n <= 0) {
-      Alert.alert('Missing amount', 'Enter how much you are putting aside.');
+      Alert.alert(t('Missing amount'), t('Enter how much you are putting aside.'));
       return;
     }
     const d = new Date();
@@ -269,7 +271,7 @@ function SavingForm(props: { visible: boolean; onClose: () => void; onSaved: () 
   return (
     <Modal visible={props.visible} animationType="slide" statusBarTranslucent onRequestClose={props.onClose}>
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
-        <SheetHeader title={isSave ? 'Put aside' : 'Withdraw'} onClose={props.onClose} onSave={save} top={insets.top} />
+        <SheetHeader title={isSave ? t('Put aside') : t('Withdraw')} onClose={props.onClose} onSave={save} top={insets.top} />
         <KeyboardScroll contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
           <View style={styles.toggle}>
             {(['save', 'withdraw'] as SavingKind[]).map((k) => {
@@ -282,37 +284,37 @@ function SavingForm(props: { visible: boolean; onClose: () => void; onSaved: () 
                   style={[styles.toggleItem, active && { backgroundColor: k === 'save' ? colors.brassSoft : colors.badSoft, borderColor: `${c}66` }]}
                 >
                   <Icon name={k === 'save' ? 'arrow-down' : 'arrow-up'} size={16} color={active ? c : colors.muted} />
-                  <Text style={[styles.toggleText, active && { color: c }]}>{k === 'save' ? 'Save' : 'Withdraw'}</Text>
+                  <Text style={[styles.toggleText, active && { color: c }]}>{k === 'save' ? t('Save') : t('Withdraw')}</Text>
                 </Scale>
               );
             })}
           </View>
           <View style={styles.preview}>
-            <Eyebrow>{isSave ? 'Into savings' : 'Out of savings'}</Eyebrow>
+            <Eyebrow>{isSave ? t('Into savings') : t('Out of savings')}</Eyebrow>
             <Serif size={48} style={{ marginTop: 4, color: n > 0 ? (isSave ? colors.brassHi : colors.bad) : colors.text }}>
               {formatMoney(egp, '').trim() || '0'}
             </Serif>
             <Text style={styles.previewNote}>
-              {isSave ? "Comes out of this month's net" : "Goes back into this month's net"}
+              {isSave ? t("Comes out of this month's net") : t("Goes back into this month's net")}
             </Text>
           </View>
           <View style={{ flexDirection: 'row' }}>
-            <View style={{ flex: 1.6, marginRight: 10 }}>
-              <Input label="Amount" value={amount} onChange={setAmount} keyboardType="numeric" icon="dollar-sign" placeholder="0" />
+            <View style={{ flex: 1.6, marginEnd: 10 }}>
+              <Input label={t('Amount')} value={amount} onChange={setAmount} keyboardType="numeric" icon="dollar-sign" placeholder="0" />
             </View>
             <View style={{ flex: 1 }}>
-              <Select label="Currency" value={currency} options={CURRENCIES} onChange={(v) => setCurrency(v as Currency)} />
+              <Select label={t('Currency')} value={currency} options={CURRENCIES} onChange={(v) => setCurrency(v as Currency)} />
             </View>
           </View>
-          <Select label="Date" value={day} options={days} onChange={setDay} icon="calendar" />
-          <Input label="Note" value={note} onChange={setNote} icon="edit-3" placeholder="Optional" />
+          <Select label={t('Date')} value={day} options={days} onChange={setDay} icon="calendar" />
+          <Input label={t('Note')} value={note} onChange={setNote} icon="edit-3" placeholder={t('Optional')} />
           <Scale onPress={() => setHidden(!hidden)} style={[styles.hideRow, hidden && { borderColor: 'rgba(217,174,98,0.4)' }]}>
             <View style={styles.hideIcon}>
               <Icon name={hidden ? 'eye-off' : 'eye'} size={18} color={hidden ? colors.brass : colors.muted} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.hideTitle}>Hide from the app</Text>
-              <Text style={styles.hideText}>Still comes out of net. Only visible when View hidden savings is on.</Text>
+              <Text style={styles.hideTitle}>{t('Hide from the app')}</Text>
+              <Text style={styles.hideText}>{t('Still comes out of net. Only visible when View hidden savings is on.')}</Text>
             </View>
             <Switch
               value={hidden}
@@ -321,7 +323,7 @@ function SavingForm(props: { visible: boolean; onClose: () => void; onSaved: () 
               thumbColor={hidden ? colors.brassHi : colors.muted}
             />
           </Scale>
-          <Button title={isSave ? 'Save' : 'Withdraw'} icon="check" onPress={save} style={{ marginTop: 6 }} />
+          <Button title={isSave ? t('Save') : t('Withdraw')} icon="check" onPress={save} style={{ marginTop: 6 }} />
         </KeyboardScroll>
       </View>
     </Modal>
@@ -338,9 +340,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 12,
   },
-  bannerText: { color: colors.brass, fontFamily: fonts.semibold, fontSize: 13, marginLeft: 10, flex: 1 },
+  bannerText: { color: colors.brass, fontFamily: fonts.semibold, fontSize: 13, marginStart: 10, flex: 1 },
   heroRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 6 },
-  heroUnit: { color: colors.textDim, fontFamily: fonts.semibold, fontSize: 15, marginLeft: 8, marginBottom: 10 },
+  heroUnit: { color: colors.textDim, fontFamily: fonts.semibold, fontSize: 15, marginStart: 8, marginBottom: 10 },
   delta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -350,7 +352,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     marginTop: 8,
   },
-  deltaText: { fontFamily: fonts.bold, fontSize: 12, marginLeft: 5 },
+  deltaText: { fontFamily: fonts.bold, fontSize: 12, marginStart: 5 },
   statsRow: { flexDirection: 'row', marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.line },
   stat: { flex: 1 },
   statNum: { color: colors.text, fontFamily: fonts.bold, fontSize: 18 },
@@ -367,7 +369,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   entryHidden: { borderStyle: 'dashed', borderColor: colors.lineStrong },
-  entryIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  entryIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginEnd: 12 },
   entryTitle: { color: colors.text, fontFamily: fonts.bold, fontSize: 15 },
   entryMeta: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 },
   hiddenBadge: {
@@ -377,9 +379,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 7,
     paddingVertical: 2,
-    marginLeft: 8,
+    marginStart: 8,
   },
-  hiddenText: { color: colors.muted, fontFamily: fonts.bold, fontSize: 10, marginLeft: 4 },
+  hiddenText: { color: colors.muted, fontFamily: fonts.bold, fontSize: 10, marginStart: 4 },
   amount: { fontFamily: fonts.bold, fontSize: 15 },
   empty: { alignItems: 'center', paddingHorizontal: 40, paddingTop: 30 },
   emptyIcon: {
@@ -391,7 +393,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
   },
-  emptyText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  emptyText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: lh(20) },
   toggle: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
@@ -411,7 +413,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  toggleText: { color: colors.muted, fontFamily: fonts.bold, fontSize: 15, marginLeft: 8 },
+  toggleText: { color: colors.muted, fontFamily: fonts.bold, fontSize: 15, marginStart: 8 },
   preview: {
     alignItems: 'center',
     paddingVertical: 22,
@@ -439,8 +441,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceHi,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginEnd: 12,
   },
   hideTitle: { color: colors.text, fontFamily: fonts.bold, fontSize: 15 },
-  hideText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 17, marginTop: 2, marginRight: 8 },
+  hideText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: lh(17), marginTop: 2, marginEnd: 8 },
 });

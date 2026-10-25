@@ -1,4 +1,5 @@
-import { Cairo_700Bold } from '@expo-google-fonts/cairo';
+import { dayName, ensureDirection, lh, ls, monthShort, t } from './src/i18n';
+import { Cairo_400Regular, Cairo_500Medium, Cairo_600SemiBold, Cairo_700Bold, Cairo_800ExtraBold } from '@expo-google-fonts/cairo';
 import { InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic } from '@expo-google-fonts/instrument-serif';
 import {
   Manrope_400Regular,
@@ -23,18 +24,17 @@ import SavingsScreen from './src/screens/SavingsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { colors, fonts } from './src/theme';
 
+const reloading = ensureDirection();
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 SplashScreen.setOptions({ fade: true, duration: 300 });
 
 type Tab = 'Pipeline' | 'Income' | 'Savings' | 'Settings';
 const TABS: { key: Tab; icon: IconName; title: string }[] = [
-  { key: 'Pipeline', icon: 'layers', title: 'Pipeline' },
-  { key: 'Income', icon: 'trending-up', title: 'Money' },
-  { key: 'Savings', icon: 'archive', title: 'Savings' },
-  { key: 'Settings', icon: 'sliders', title: 'Settings' },
+  { key: 'Pipeline', icon: 'layers', title: t('Pipeline') },
+  { key: 'Income', icon: 'trending-up', title: t('Money') },
+  { key: 'Savings', icon: 'archive', title: t('Savings') },
+  { key: 'Settings', icon: 'sliders', title: t('Settings') },
 ];
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MARK_SIZE = 157;
 
 function Intro({ onDone }: { onDone: () => void }) {
@@ -76,7 +76,7 @@ function Intro({ onDone }: { onDone: () => void }) {
         }}
       >
         <Text style={styles.wordmark}>السقفيه</Text>
-        <Text style={styles.tagline}>Every stream, accounted for.</Text>
+        <Text style={styles.tagline}>{t('Every stream, accounted for.')}</Text>
       </Animated.View>
     </Animated.View>
   );
@@ -87,7 +87,11 @@ function Shell() {
   const [fontsLoaded] = useFonts({
     InstrumentSerif_400Regular,
     InstrumentSerif_400Regular_Italic,
+    Cairo_400Regular,
+    Cairo_500Medium,
+    Cairo_600SemiBold,
     Cairo_700Bold,
+    Cairo_800ExtraBold,
     Manrope_400Regular,
     Manrope_500Medium,
     Manrope_600SemiBold,
@@ -154,7 +158,7 @@ function Shell() {
 
   const finishIntro = useCallback(() => setIntro(false), []);
 
-  if (!ready) return <View style={styles.root} />;
+  if (!ready || reloading) return <View style={styles.root} />;
 
   const tabBarHeight = 66 + Math.max(insets.bottom, 12);
   const screenProps = { version, sources, categories, bump, bottomSpace: tabBarHeight + 16 };
@@ -176,7 +180,7 @@ function Shell() {
         <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
           <View>
             <Eyebrow>
-              {DAYS[now.getDay()]} · {now.getDate()} {MONTHS[now.getMonth()]}
+              {dayName(now.getDay())} · {now.getDate()} {monthShort(now.getMonth())}
             </Eyebrow>
             <Serif size={40} style={{ marginTop: 4 }}>
               {current.title}
@@ -221,8 +225,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   topGlow: { position: 'absolute', top: 0, left: 0, right: 0, height: 320 },
   intro: { backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  wordmark: { color: colors.text, fontFamily: fonts.arabic, fontSize: 42, lineHeight: 64 },
-  tagline: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, letterSpacing: 1.2, marginTop: 4 },
+  wordmark: { color: colors.text, fontFamily: fonts.arabic, fontSize: 42, lineHeight: lh(64) },
+  tagline: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, letterSpacing: ls(1.2), marginTop: 4 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -230,7 +234,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 10,
   },
-  headerMark: { width: 54, height: 54, marginBottom: -4, marginRight: -10, opacity: 0.9 },
+  headerMark: { width: 54, height: 54, marginBottom: -4, marginEnd: -10, opacity: 0.9 },
   tabWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 18 },
   tabBar: {
     flexDirection: 'row',
@@ -247,5 +251,5 @@ const styles = StyleSheet.create({
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', height: 54, borderRadius: 20 },
   tabActive: { backgroundColor: colors.brassSoft },
-  tabLabel: { color: colors.muted, fontSize: 11, marginTop: 4, fontFamily: fonts.bold, letterSpacing: 0.4 },
+  tabLabel: { color: colors.muted, fontSize: 11, marginTop: 4, fontFamily: fonts.bold, letterSpacing: ls(0.4) },
 });

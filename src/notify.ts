@@ -1,3 +1,4 @@
+import { t, tv } from './i18n';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getItem, getItems, getSettings, Item, OPEN_STAGES, setItemNotif } from './db';
@@ -17,7 +18,7 @@ Notifications.setNotificationHandler({
 export async function setupNotifications(): Promise<boolean> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(CHANNEL, {
-      name: 'Follow-up reminders',
+      name: t('Follow-up reminders'),
       importance: Notifications.AndroidImportance.HIGH,
     });
   }
@@ -39,8 +40,8 @@ async function scheduleFor(item: Item, followupDays: number): Promise<void> {
   if (when <= Date.now()) when = Date.now() + 60 * 60 * 1000;
   const id = await Notifications.scheduleNotificationAsync({
     content: {
-      title: `Follow up: ${item.title}`,
-      body: `${item.stage} via ${item.source}. Untouched for ${followupDays}+ days.`,
+      title: t('Follow up: {title}', { title: item.title }),
+      body: t('{stage} via {source}. Untouched for {n}+ days.', { stage: tv(item.stage), source: tv(item.source), n: followupDays }),
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,

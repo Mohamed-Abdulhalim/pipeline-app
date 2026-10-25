@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -56,11 +57,11 @@ export default function ItemForm(props: {
 
   const save = async () => {
     if (!title.trim()) {
-      Alert.alert('Missing title', 'Give this item a short name.');
+      Alert.alert(t('Missing title'), t('Give this item a short name.'));
       return;
     }
     if (!source) {
-      Alert.alert('Missing source', 'Pick a source. Add sources in Settings.');
+      Alert.alert(t('Missing source'), t('Pick a source. Add sources in Settings.'));
       return;
     }
     const input = {
@@ -96,10 +97,10 @@ export default function ItemForm(props: {
   const remove = () => {
     const it = props.item;
     if (!it) return;
-    Alert.alert('Delete item?', it.title, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('Delete item?'), it.title, [
+      { text: t('Cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('Delete'),
         style: 'destructive',
         onPress: async () => {
           await cancelItem(it.notif_id);
@@ -113,42 +114,42 @@ export default function ItemForm(props: {
   return (
     <Modal visible={props.visible} animationType="slide" statusBarTranslucent onRequestClose={props.onClose}>
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
-        <SheetHeader title={props.item ? 'Edit entry' : 'New entry'} onClose={props.onClose} onSave={save} top={insets.top} />
+        <SheetHeader title={props.item ? t('Edit entry') : t('New entry')} onClose={props.onClose} onSave={save} top={insets.top} />
         <KeyboardScroll
           contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
-          <Input label="Title" value={title} onChange={setTitle} icon="type" placeholder="n8n automation for a dental clinic" />
+          <Input label={t('Title')} value={title} onChange={setTitle} icon="type" placeholder={t('n8n automation for a dental clinic')} />
           <Select
-            label="Stage"
+            label={t('Stage')}
             value={stage}
             options={STAGES}
             onChange={(v) => setStage(v as Stage)}
             dot={(v) => stageColors[v]}
           />
           <View style={styles.row}>
-            <View style={{ flex: 1, marginRight: 10 }}>
-              <Select label="Source" value={source} options={props.sources} onChange={setSource} />
+            <View style={{ flex: 1, marginEnd: 10 }}>
+              <Select label={t('Source')} value={source} options={props.sources} onChange={setSource} />
             </View>
             <View style={{ flex: 1 }}>
-              <Select label="Type" value={kind} options={KINDS} onChange={setKind} />
+              <Select label={t('Type')} value={kind} options={KINDS} onChange={setKind} />
             </View>
           </View>
           <View style={styles.row}>
-            <View style={{ flex: 1.6, marginRight: 10 }}>
-              <Input label="Expected value" value={value} onChange={setValue} keyboardType="numeric" icon="dollar-sign" placeholder="0" />
+            <View style={{ flex: 1.6, marginEnd: 10 }}>
+              <Input label={t('Expected value')} value={value} onChange={setValue} keyboardType="numeric" icon="dollar-sign" placeholder="0" />
             </View>
             <View style={{ flex: 1 }}>
-              <Select label="Currency" value={currency} options={CURRENCIES} onChange={(v) => setCurrency(v as Currency)} />
+              <Select label={t('Currency')} value={currency} options={CURRENCIES} onChange={(v) => setCurrency(v as Currency)} />
             </View>
           </View>
-          <Input label="Link" value={link} onChange={setLink} keyboardType="url" icon="link-2" placeholder="https://" />
-          <Input label="Notes" value={notes} onChange={setNotes} multiline placeholder="Contact, next step, anything useful" />
+          <Input label={t('Link')} value={link} onChange={setLink} keyboardType="url" icon="link-2" placeholder="https://" />
+          <Input label={t('Notes')} value={notes} onChange={setNotes} multiline placeholder={t('Contact, next step, anything useful')} />
           {props.item ? (
             <View style={{ marginTop: 6 }}>
-              <Button title="I followed up today" icon="refresh-cw" variant="ghost" onPress={followedUp} style={{ marginBottom: 10 }} />
-              <Button title="Delete entry" icon="trash-2" variant="danger" onPress={remove} />
+              <Button title={t('I followed up today')} icon="refresh-cw" variant="ghost" onPress={followedUp} style={{ marginBottom: 10 }} />
+              <Button title={t('Delete entry')} icon="trash-2" variant="danger" onPress={remove} />
             </View>
           ) : (
-            <Button title="Add to pipeline" icon="plus" onPress={save} style={{ marginTop: 6 }} />
+            <Button title={t('Add to pipeline')} icon="plus" onPress={save} style={{ marginTop: 6 }} />
           )}
         </KeyboardScroll>
       </View>

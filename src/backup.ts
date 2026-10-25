@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -10,7 +11,7 @@ export async function exportBackup(): Promise<void> {
   if (file.exists) file.delete();
   file.create();
   file.write(JSON.stringify(data));
-  await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Save Pipeline backup' });
+  await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: t('Save backup') });
 }
 
 export async function pickBackup(): Promise<Backup | null> {
@@ -19,7 +20,7 @@ export async function pickBackup(): Promise<Backup | null> {
   const text = await new File(res.assets[0].uri).text();
   const data = JSON.parse(text) as Backup;
   if (data.app !== 'pipeline' || !Array.isArray(data.items) || !Array.isArray(data.income)) {
-    throw new Error('This file is not a Pipeline backup.');
+    throw new Error(t('This file is not a backup from this app.'));
   }
   return data;
 }

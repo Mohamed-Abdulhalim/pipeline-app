@@ -1,3 +1,4 @@
+import { lh, monthName as i18nMonth, t, tv } from '../i18n';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -5,11 +6,10 @@ import { Button, Eyebrow, formatMoney, Icon, IconName, KeyboardScroll, SheetHead
 import { getPlan, PlanKind, savePlan } from '../db';
 import { colors, fonts } from '../theme';
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const PLAN_HORIZON = 12;
 
 export function monthName(key: string) {
-  return MONTHS[Number(key.slice(5, 7)) - 1] ?? key;
+  return i18nMonth(Number(key.slice(5, 7)) - 1) ?? key;
 }
 
 
@@ -23,7 +23,7 @@ function AmountRow(props: { label: string; value: string; onChange: (v: string) 
   return (
     <Pressable onPress={() => setEditing(true)} style={[styles.row, editing && { borderColor: props.accent }]}>
       <Text style={styles.rowLabel} numberOfLines={1}>
-        {props.label}
+        {tv(props.label)}
       </Text>
       {editing ? (
         <TextInput
@@ -46,7 +46,7 @@ function AmountRow(props: { label: string; value: string; onChange: (v: string) 
           {props.value || '0'}
         </Text>
       )}
-      <Text style={styles.rowUnit}>EGP</Text>
+      <Text style={styles.rowUnit}>{tv('EGP')}</Text>
     </Pressable>
   );
 }
@@ -123,17 +123,17 @@ export default function PlanSheet(props: {
   return (
     <Modal visible={props.visible} animationType="slide" statusBarTranslucent onRequestClose={props.onClose}>
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
-        <SheetHeader title={`Plan ${month.name} ${month.key.slice(0, 4)}`} onClose={props.onClose} onSave={save} top={insets.top} />
+        <SheetHeader title={t('Plan {month}', { month: `${month.name} ${month.key.slice(0, 4)}` })} onClose={props.onClose} onSave={save} top={insets.top} />
         <View style={{ paddingHorizontal: 20 }}>
           <View style={styles.summary}>
             <View style={styles.sumCol}>
               <Text style={[styles.sumNum, { color: colors.good }]}>{formatMoney(income, '').trim()}</Text>
-              <Text style={styles.sumLabel}>Expected</Text>
+              <Text style={styles.sumLabel}>{t('Expected')}</Text>
             </View>
             <View style={styles.sumDivider} />
             <View style={styles.sumCol}>
               <Text style={styles.sumNum}>{formatMoney(spending + saving, '').trim()}</Text>
-              <Text style={styles.sumLabel}>Assigned</Text>
+              <Text style={styles.sumLabel}>{t('Assigned')}</Text>
             </View>
             <View style={styles.sumDivider} />
             <View style={styles.sumCol}>
@@ -141,28 +141,28 @@ export default function PlanSheet(props: {
                 {left < 0 ? '−' : ''}
                 {formatMoney(Math.abs(left), '').trim()}
               </Text>
-              <Text style={styles.sumLabel}>{left < 0 ? 'Over-assigned' : 'Left to assign'}</Text>
+              <Text style={styles.sumLabel}>{left < 0 ? t('Over-assigned') : t('Left to assign')}</Text>
             </View>
           </View>
         </View>
         <KeyboardScroll contentContainerStyle={{ padding: 20, paddingTop: 14, paddingBottom: insets.bottom + 40 }}>
-          <Section title="Expected income" icon="arrow-down-left" total={income} accent={colors.good}>
+          <Section title={t('Expected income')} icon="arrow-down-left" total={income} accent={colors.good}>
             {incomeLabels.map((l) => (
               <AmountRow key={l} label={l} value={values[k('income', l)] ?? ''} onChange={set(k('income', l))} accent={colors.good} />
             ))}
           </Section>
-          <Section title="Spending budget" icon="arrow-up-right" total={spending} accent={colors.bad}>
+          <Section title={t('Spending budget')} icon="arrow-up-right" total={spending} accent={colors.bad}>
             {expenseLabels.map((l) => (
               <AmountRow key={l} label={l} value={values[k('expense', l)] ?? ''} onChange={set(k('expense', l))} accent={colors.bad} />
             ))}
           </Section>
-          <Section title="Savings" icon="archive" total={saving} accent={colors.brass}>
-            <AmountRow label="Put aside" value={values[k('saving', 'Savings')] ?? ''} onChange={set(k('saving', 'Savings'))} accent={colors.brass} />
+          <Section title={t('Savings')} icon="archive" total={saving} accent={colors.brass}>
+            <AmountRow label={t('Put aside')} value={values[k('saving', 'Savings')] ?? ''} onChange={set(k('saving', 'Savings'))} accent={colors.brass} />
           </Section>
           <Text style={styles.hint}>
             Leave a field empty to skip it. Add sources and categories in Settings. Amounts are in EGP.
           </Text>
-          <Button title={`Save ${month.name} plan`} icon="check" onPress={save} />
+          <Button title={t('Save {month} plan', { month: month.name })} icon="check" onPress={save} />
         </KeyboardScroll>
       </View>
     </Modal>
@@ -204,9 +204,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 16,
   },
-  bannerText: { color: colors.brass, fontFamily: fonts.semibold, fontSize: 13, marginLeft: 10, flex: 1 },
+  bannerText: { color: colors.brass, fontFamily: fonts.semibold, fontSize: 13, marginStart: 10, flex: 1 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  sectionIcon: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  sectionIcon: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginEnd: 10 },
   sectionTotal: { fontFamily: fonts.bold, fontSize: 13 },
   row: {
     flexDirection: 'row',
@@ -215,12 +215,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.line,
-    paddingLeft: 14,
-    paddingRight: 12,
+    paddingStart: 14,
+    paddingEnd: 12,
     height: 54,
     marginBottom: 8,
   },
-  rowLabel: { flex: 1, color: colors.text, fontFamily: fonts.semibold, fontSize: 15, marginRight: 10 },
+  rowLabel: { flex: 1, color: colors.text, fontFamily: fonts.semibold, fontSize: 15, marginEnd: 10 },
   rowInput: {
     width: 120,
     textAlign: 'right',
@@ -230,6 +230,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   rowValue: { paddingVertical: 10 },
-  rowUnit: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 12, marginLeft: 6 },
-  hint: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18, marginBottom: 16 },
+  rowUnit: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 12, marginStart: 6 },
+  hint: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: lh(18), marginBottom: 16 },
 });

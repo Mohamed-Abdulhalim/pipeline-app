@@ -1,3 +1,4 @@
+import { lh, ls, t, tv } from '../i18n';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
@@ -115,30 +116,30 @@ export default function PipelineScreen(props: {
     <View>
       <View style={{ paddingHorizontal: 20 }}>
         <GlowCard style={{ marginBottom: 6 }}>
-          <Eyebrow style={{ color: colors.brass }}>Open pipeline value</Eyebrow>
+          <Eyebrow style={{ color: colors.brass }}>{t('Open pipeline value')}</Eyebrow>
           <View style={styles.heroRow}>
             <Serif size={52}>{compactMoney(stats.openValue)}</Serif>
-            <Text style={styles.heroUnit}>EGP</Text>
+            <Text style={styles.heroUnit}>{tv('EGP')}</Text>
           </View>
           <View style={styles.statsRow}>
             <View style={styles.stat}>
               <Text style={styles.statNum}>{stats.counts.Open}</Text>
-              <Text style={styles.statLabel}>Open</Text>
+              <Text style={styles.statLabel}>{t('Open')}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.stat}>
               <Text style={[styles.statNum, stats.counts.Stale > 0 && { color: colors.warn }]}>{stats.counts.Stale}</Text>
-              <Text style={styles.statLabel}>Need follow-up</Text>
+              <Text style={styles.statLabel}>{t('Need follow-up')}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.stat}>
               <Text style={[styles.statNum, { color: colors.good }]}>{stats.wonMonth}</Text>
-              <Text style={styles.statLabel}>Won this month</Text>
+              <Text style={styles.statLabel}>{t('Won this month')}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.stat}>
               <Text style={styles.statNum}>{stats.winRate === null ? '–' : `${stats.winRate}%`}</Text>
-              <Text style={styles.statLabel}>Win rate</Text>
+              <Text style={styles.statLabel}>{t('Win rate')}</Text>
             </View>
           </View>
         </GlowCard>
@@ -147,7 +148,7 @@ export default function PipelineScreen(props: {
         {FILTERS.map((f) => (
           <Chip
             key={f}
-            label={f === 'Stale' ? 'Follow up' : f}
+            label={f === 'Stale' ? t('Follow up') : f === 'Open' ? t('Open') : tv(f)}
             count={stats.counts[f] ?? 0}
             active={filter === f}
             color={f === 'Stale' ? colors.warn : f === 'Open' ? colors.brass : stageColors[f]}
@@ -171,12 +172,12 @@ export default function PipelineScreen(props: {
               <Icon name={filter === 'Stale' ? 'check-circle' : 'inbox'} size={26} color={colors.brass} />
             </View>
             <Serif size={26} style={{ textAlign: 'center' }}>
-              {filter === 'Stale' ? 'All caught up' : 'Nothing here yet'}
+              {filter === 'Stale' ? t('All caught up') : t('Nothing here yet')}
             </Serif>
             <Text style={styles.emptyText}>
               {filter === 'Stale'
-                ? 'No open lead has been left waiting too long.'
-                : 'Log every lead, application and client conversation. Tap the + button.'}
+                ? t('No open lead has been left waiting too long.')
+                : t('Log every lead, application and client conversation. Tap the + button.')}
             </Text>
           </View>
         }
@@ -191,12 +192,12 @@ export default function PipelineScreen(props: {
                 <View style={styles.cardTop}>
                   <View style={[styles.stagePill, { backgroundColor: `${stageColors[item.stage]}1F` }]}>
                     <View style={[styles.stageDot, { backgroundColor: stageColors[item.stage] }]} />
-                    <Text style={[styles.stageText, { color: stageColors[item.stage] }]}>{item.stage}</Text>
+                    <Text style={[styles.stageText, { color: stageColors[item.stage] }]}>{tv(item.stage)}</Text>
                   </View>
                   {stale && (
                     <View style={styles.staleBadge}>
                       <Icon name="clock" size={12} color={colors.warn} />
-                      <Text style={styles.staleText}>{days}d waiting</Text>
+                      <Text style={styles.staleText}>{t('{n}d waiting', { n: days })}</Text>
                     </View>
                   )}
                 </View>
@@ -204,8 +205,8 @@ export default function PipelineScreen(props: {
                   {item.title}
                 </Text>
                 <Text style={styles.meta}>
-                  {item.source} · {item.kind}
-                  {!stale && ` · ${days === 0 ? 'today' : `${days}d ago`}`}
+                  {tv(item.source)} · {tv(item.kind)}
+                  {!stale && ` · ${days === 0 ? t('today') : t('{n}d ago', { n: days })}`}
                 </Text>
                 <StageRail stage={item.stage} />
                 <View style={styles.cardBottom}>
@@ -218,7 +219,7 @@ export default function PipelineScreen(props: {
                     )}
                     {canAdvance && (
                       <Scale onPress={() => advance(item)} style={styles.advance}>
-                        <Text style={styles.advanceText}>{next}</Text>
+                        <Text style={styles.advanceText}>{tv(next)}</Text>
                         <Icon name="arrow-right" size={14} color={colors.brass} />
                       </Scale>
                     )}
@@ -246,7 +247,7 @@ export default function PipelineScreen(props: {
 
 const styles = StyleSheet.create({
   heroRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 6 },
-  heroUnit: { color: colors.textDim, fontFamily: fonts.semibold, fontSize: 15, marginLeft: 8, marginBottom: 10 },
+  heroUnit: { color: colors.textDim, fontFamily: fonts.semibold, fontSize: 15, marginStart: 8, marginBottom: 10 },
   statsRow: {
     flexDirection: 'row',
     marginTop: 18,
@@ -269,8 +270,8 @@ const styles = StyleSheet.create({
   },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   stagePill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  stageDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
-  stageText: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase' },
+  stageDot: { width: 6, height: 6, borderRadius: 3, marginEnd: 6 },
+  stageText: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: ls(0.8), textTransform: 'uppercase' },
   staleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -279,11 +280,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 999,
   },
-  staleText: { color: colors.warn, fontFamily: fonts.bold, fontSize: 11, marginLeft: 5 },
-  cardTitle: { color: colors.text, fontSize: 17, fontFamily: fonts.bold, lineHeight: 23 },
+  staleText: { color: colors.warn, fontFamily: fonts.bold, fontSize: 11, marginStart: 5 },
+  cardTitle: { color: colors.text, fontSize: 17, fontFamily: fonts.bold, lineHeight: lh(23) },
   meta: { color: colors.muted, fontSize: 13, fontFamily: fonts.medium, marginTop: 4 },
   rail: { flexDirection: 'row', marginTop: 14, marginBottom: 12 },
-  railSeg: { flex: 1, height: 3, borderRadius: 2, marginRight: 4 },
+  railSeg: { flex: 1, height: 3, borderRadius: 2, marginEnd: 4 },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   value: { color: colors.textDim, fontFamily: fonts.semibold, fontSize: 14 },
   iconBtn: {
@@ -293,7 +294,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceHi,
-    marginLeft: 8,
+    marginStart: 8,
   },
   advance: {
     flexDirection: 'row',
@@ -302,9 +303,9 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 12,
     backgroundColor: colors.brassSoft,
-    marginLeft: 8,
+    marginStart: 8,
   },
-  advanceText: { color: colors.brass, fontFamily: fonts.bold, fontSize: 13, marginRight: 6 },
+  advanceText: { color: colors.brass, fontFamily: fonts.bold, fontSize: 13, marginEnd: 6 },
   empty: { alignItems: 'center', paddingHorizontal: 40, paddingTop: 30 },
   emptyIcon: {
     width: 60,
@@ -315,5 +316,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
   },
-  emptyText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  emptyText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: lh(20) },
 });

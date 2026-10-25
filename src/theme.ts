@@ -1,3 +1,5 @@
+import { isAR } from './i18n';
+
 export const colors = {
   bg: '#0A0C11',
   bgTop: '#141A26',
@@ -29,16 +31,27 @@ export const stageColors: Record<string, string> = {
   Lost: '#D98585',
 };
 
-export const fonts = {
-  serif: 'InstrumentSerif_400Regular',
-  serifItalic: 'InstrumentSerif_400Regular_Italic',
-  regular: 'Manrope_400Regular',
-  medium: 'Manrope_500Medium',
-  semibold: 'Manrope_600SemiBold',
-  bold: 'Manrope_700Bold',
-  heavy: 'Manrope_800ExtraBold',
-  arabic: 'Cairo_700Bold',
-};
+export const fonts = isAR
+  ? {
+      serif: 'Cairo_700Bold',
+      serifItalic: 'Cairo_700Bold',
+      regular: 'Cairo_400Regular',
+      medium: 'Cairo_500Medium',
+      semibold: 'Cairo_600SemiBold',
+      bold: 'Cairo_700Bold',
+      heavy: 'Cairo_800ExtraBold',
+      arabic: 'Cairo_700Bold',
+    }
+  : {
+      serif: 'InstrumentSerif_400Regular',
+      serifItalic: 'InstrumentSerif_400Regular_Italic',
+      regular: 'Manrope_400Regular',
+      medium: 'Manrope_500Medium',
+      semibold: 'Manrope_600SemiBold',
+      bold: 'Manrope_700Bold',
+      heavy: 'Manrope_800ExtraBold',
+      arabic: 'Cairo_700Bold',
+    };
 
 export const brassGradient = [colors.brassHi, colors.brass, colors.brassLo] as const;
 

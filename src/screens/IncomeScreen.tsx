@@ -1,3 +1,4 @@
+import { fmtDate, lh, ls, monthName, t, tv } from '../i18n';
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,7 +38,6 @@ import {
 import PlanSheet, { PLAN_HORIZON } from './PlanSheet';
 import { colors, fonts } from '../theme';
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const INCOME_PALETTE = ['#D9AE62', '#7FA6D9', '#7CCB9A', '#A99BE0', '#6CC3C9', '#C9A0C4', '#8A93A6'];
 const SPEND_PALETTE = ['#D98585', '#E6B05C', '#A99BE0', '#7FA6D9', '#6CC3C9', '#C9A0C4', '#8A93A6', '#D9AE62'];
 
@@ -50,7 +50,7 @@ function monthRange(offset: number) {
   const start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
   const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
   const prev = new Date(start.getFullYear(), start.getMonth() - 1, 1);
-  return { start, end, prev, month: MONTHS[start.getMonth()], year: start.getFullYear() };
+  return { start, end, prev, month: monthName(start.getMonth()), year: start.getFullYear() };
 }
 
 function group(rows: Row[]): [string, number][] {
@@ -70,7 +70,7 @@ function Breakdown(props: { title: string; items: [string, number][]; colorOf: M
       <Eyebrow style={{ marginBottom: 12 }}>{props.title}</Eyebrow>
       <View style={styles.stack}>
         {props.items.map(([name, amt]) => (
-          <View key={name} style={{ flex: amt, backgroundColor: props.colorOf.get(name), marginRight: 2 }} />
+          <View key={name} style={{ flex: amt, backgroundColor: props.colorOf.get(name), marginEnd: 2 }} />
         ))}
       </View>
       {props.children}
@@ -79,7 +79,7 @@ function Breakdown(props: { title: string; items: [string, number][]; colorOf: M
           <View key={name} style={[styles.sourceRow, i === props.items.length - 1 && { borderBottomWidth: 0 }]}>
             <View style={[styles.swatch, { backgroundColor: props.colorOf.get(name) }]} />
             <Text style={styles.sourceName} numberOfLines={1}>
-              {name}
+              {tv(name)}
             </Text>
             <Text style={styles.sourcePct}>{Math.round((amt / total) * 100)}%</Text>
             <Text style={styles.sourceAmt}>{formatMoney(amt)}</Text>
@@ -127,10 +127,10 @@ function PlanCard(props: {
         <Eyebrow style={{ marginBottom: 6 }}>{props.month} plan</Eyebrow>
         <Text style={styles.planEmpty}>
           {props.future
-            ? `Nothing planned for ${props.month} yet. Split the salary you expect across spending and savings.`
-            : 'Split your expected salary across spending and savings, then track it here as the month goes.'}
+            ? t('Nothing planned for {month} yet. Split the salary you expect across spending and savings.', { month: props.month })
+            : t('Split your expected salary across spending and savings, then track it here as the month goes.')}
         </Text>
-        <Button title={`Plan ${props.month}`} icon="calendar" onPress={props.onEdit} style={{ marginTop: 14 }} />
+        <Button title={t('Plan {month}', { month: props.month })} icon="calendar" onPress={props.onEdit} style={{ marginTop: 14 }} />
       </View>
     );
   }
@@ -141,7 +141,7 @@ function PlanCard(props: {
       {props.editable && (
         <Scale onPress={props.onEdit} style={styles.planEdit}>
           <Icon name="edit-2" size={13} color={colors.brass} />
-          <Text style={styles.planEditText}>Edit</Text>
+          <Text style={styles.planEditText}>{t('Edit')}</Text>
         </Scale>
       )}
     </View>
@@ -153,7 +153,7 @@ function PlanCard(props: {
       <View style={[styles.card, { marginBottom: 12 }]}>
         {head}
         <View style={styles.planRow}>
-          <Text style={[styles.planName, { color: colors.good }]}>Expected income</Text>
+          <Text style={[styles.planName, { color: colors.good }]}>{t('Expected income')}</Text>
           <Text style={[styles.planNums, { color: colors.good }]}>{formatMoney(income)}</Text>
         </View>
         {budgets.map((b) => (
@@ -166,7 +166,7 @@ function PlanCard(props: {
         ))}
         {saving > 0 && (
           <View style={styles.planRow}>
-            <Text style={[styles.planName, { color: colors.brassHi }]}>Savings</Text>
+            <Text style={[styles.planName, { color: colors.brassHi }]}>{t('Savings')}</Text>
             <Text style={[styles.planNums, { color: colors.brassHi }]}>{formatMoney(saving)}</Text>
           </View>
         )}
@@ -174,10 +174,10 @@ function PlanCard(props: {
           <Icon name={unassigned === 0 ? 'check-circle' : unassigned < 0 ? 'alert-triangle' : 'info'} size={14} color={leftColor} />
           <Text style={[styles.planFooterText, { color: leftColor }]}>
             {unassigned === 0
-              ? 'Every pound has a job'
+              ? t('Every pound has a job')
               : unassigned > 0
-                ? `${formatMoney(unassigned)} not assigned yet`
-                : `${formatMoney(-unassigned)} more assigned than you expect to earn`}
+                ? t('{amount} not assigned yet', { amount: formatMoney(unassigned) })
+                : t('{amount} more assigned than you expect to earn', { amount: formatMoney(-unassigned) })}
           </Text>
         </View>
       </View>
@@ -191,7 +191,7 @@ function PlanCard(props: {
       {head}
 
       <View style={styles.planRow}>
-        <Text style={styles.planName}>Income</Text>
+        <Text style={styles.planName}>{t('Income')}</Text>
         <Text style={styles.planNums}>
           {formatMoney(props.received, '').trim()} / {formatMoney(income)}
         </Text>
@@ -217,7 +217,7 @@ function PlanCard(props: {
 
       {unplanned > 0 && (
         <View style={styles.planRow}>
-          <Text style={[styles.planName, { color: colors.warn }]}>Unplanned spending</Text>
+          <Text style={[styles.planName, { color: colors.warn }]}>{t('Unplanned spending')}</Text>
           <Text style={[styles.planNums, { color: colors.warn }]}>{formatMoney(unplanned)}</Text>
         </View>
       )}
@@ -225,7 +225,7 @@ function PlanCard(props: {
       {saving > 0 && (
         <>
           <View style={styles.planRow}>
-            <Text style={styles.planName}>Savings</Text>
+            <Text style={styles.planName}>{t('Savings')}</Text>
             <Text style={styles.planNums}>
               {formatMoney(props.savedVisible, '').trim()} / {formatMoney(saving)}
             </Text>
@@ -238,7 +238,9 @@ function PlanCard(props: {
         <View style={[styles.planFooter, { backgroundColor: budgetLeft >= 0 ? colors.goodSoft : colors.badSoft }]}>
           <Icon name={budgetLeft >= 0 ? 'check-circle' : 'alert-triangle'} size={14} color={budgetLeft >= 0 ? colors.good : colors.bad} />
           <Text style={[styles.planFooterText, { color: budgetLeft >= 0 ? colors.good : colors.bad }]}>
-            {budgetLeft >= 0 ? `${formatMoney(budgetLeft)} left in your spending budget` : `${formatMoney(-budgetLeft)} over your spending budget`}
+            {budgetLeft >= 0
+              ? t('{amount} left in your spending budget', { amount: formatMoney(budgetLeft) })
+              : t('{amount} over your spending budget', { amount: formatMoney(-budgetLeft) })}
           </Text>
         </View>
       )}
@@ -313,10 +315,10 @@ export default function MoneyScreen(props: {
   const visible = filter === 'All' ? rows : filter === 'Income' ? incomeRows : expenseRows;
 
   const remove = (r: Row) => {
-    Alert.alert(r.kind === 'in' ? 'Delete income?' : 'Delete expense?', `${formatMoney(r.amount, r.currency)} · ${r.label}`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(r.kind === 'in' ? t('Delete income?') : t('Delete expense?'), `${formatMoney(r.amount, r.currency)} · ${tv(r.label)}`, [
+      { text: t('Cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('Delete'),
         style: 'destructive',
         onPress: async () => {
           if (r.kind === 'in') await deleteIncome(r.id);
@@ -348,48 +350,48 @@ export default function MoneyScreen(props: {
       {future && (
         <View style={styles.futureNote}>
           <Icon name="calendar" size={14} color={colors.brass} />
-          <Text style={styles.futureText}>Upcoming month. Plan it now; actual money shows up here once it starts.</Text>
+          <Text style={styles.futureText}>{t('Upcoming month. Plan it now; actual money shows up here once it starts.')}</Text>
         </View>
       )}
 
       {!future && (
       <GlowCard style={{ marginBottom: 14 }}>
-        <Eyebrow style={{ color: colors.brass }}>Net · left to spend</Eyebrow>
+        <Eyebrow style={{ color: colors.brass }}>{t('Net · left to spend')}</Eyebrow>
         <View style={styles.heroRow}>
           <Serif size={52} style={net < 0 ? { color: colors.bad } : undefined}>
             {net < 0 ? '−' : ''}
             {compactMoney(Math.abs(net))}
           </Serif>
-          <Text style={styles.heroUnit}>EGP</Text>
+          <Text style={styles.heroUnit}>{tv('EGP')}</Text>
         </View>
         {delta !== null && (
           <View style={[styles.delta, { backgroundColor: delta >= 0 ? colors.goodSoft : colors.badSoft }]}>
             <Icon name={delta >= 0 ? 'arrow-up-right' : 'arrow-down-right'} size={13} color={delta >= 0 ? colors.good : colors.bad} />
             <Text style={[styles.deltaText, { color: delta >= 0 ? colors.good : colors.bad }]}>
               {delta >= 0 ? '+' : '−'}
-              {formatMoney(Math.abs(delta))} vs last month
+              {t('{amount} vs last month', { amount: formatMoney(Math.abs(delta)) })}
             </Text>
           </View>
         )}
         <View style={styles.statsRow}>
           <View style={styles.stat}>
             <Text style={[styles.statNum, { color: colors.good }]}>{compactMoney(received)}</Text>
-            <Text style={styles.statLabel}>Received</Text>
+            <Text style={styles.statLabel}>{t('Received')}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
             <Text style={[styles.statNum, { color: colors.bad }]}>{compactMoney(spent)}</Text>
-            <Text style={styles.statLabel}>Spent</Text>
+            <Text style={styles.statLabel}>{t('Spent')}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
             <Text style={[styles.statNum, { color: colors.brassHi }]}>{compactMoney(savedVisible)}</Text>
-            <Text style={styles.statLabel}>Saved</Text>
+            <Text style={styles.statLabel}>{t('Saved')}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
             <Text style={[styles.statNum, kept !== null && kept < 0 && { color: colors.bad }]}>{kept === null ? '–' : `${kept}%`}</Text>
-            <Text style={styles.statLabel}>Left</Text>
+            <Text style={styles.statLabel}>{t('Left')}</Text>
           </View>
         </View>
         {received > 0 && (
@@ -400,8 +402,8 @@ export default function MoneyScreen(props: {
         {received > 0 && (
           <Text style={styles.spendNote}>
             {spent > received
-              ? `Spent ${formatMoney(spent - received)} more than you received`
-              : `Spent ${Math.round((spent / received) * 100)}% of what came in`}
+              ? t('Spent {amount} more than you received', { amount: formatMoney(spent - received) })
+              : t('Spent {pct}% of what came in', { pct: Math.round((spent / received) * 100) })}
           </Text>
         )}
       </GlowCard>
@@ -422,12 +424,12 @@ export default function MoneyScreen(props: {
       />
 
       {bySource.length > 0 && (
-        <Breakdown title="Income by source" items={bySource} colorOf={sourceColor}>
+        <Breakdown title={t('Income by source')} items={bySource} colorOf={sourceColor}>
           <View style={styles.depRow}>
             <Icon name={topShare >= 0.7 ? 'alert-triangle' : 'shield'} size={14} color={topShare >= 0.7 ? colors.warn : colors.good} />
             <Text style={[styles.depText, { color: topShare >= 0.7 ? colors.warn : colors.good }]}>
-              {Math.round(topShare * 100)}% from {bySource[0][0]}
-              {topShare >= 0.7 ? '. Too dependent on one source.' : '. Healthy spread.'}
+              {t('{pct}% from {source}.', { pct: Math.round(topShare * 100), source: tv(bySource[0][0]) })}{' '}
+              {topShare >= 0.7 ? t('Too dependent on one source.') : t('Healthy spread.')}
             </Text>
           </View>
         </Breakdown>
@@ -435,18 +437,18 @@ export default function MoneyScreen(props: {
 
       {byCategory.length > 0 && (
         <View style={{ marginTop: 12 }}>
-          <Breakdown title="Spending by category" items={byCategory} colorOf={categoryColor} />
+          <Breakdown title={t('Spending by category')} items={byCategory} colorOf={categoryColor} />
         </View>
       )}
 
       {rows.length > 0 && (
         <>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 20, marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
-            <Chip label="All" count={rows.length} active={filter === 'All'} color={colors.brass} onPress={() => setFilter('All')} />
-            <Chip label="Income" count={incomeRows.length} active={filter === 'Income'} color={colors.good} onPress={() => setFilter('Income')} />
-            <Chip label="Expenses" count={expenseRows.length} active={filter === 'Expenses'} color={colors.bad} onPress={() => setFilter('Expenses')} />
+            <Chip label={t('All')} count={rows.length} active={filter === 'All'} color={colors.brass} onPress={() => setFilter('All')} />
+            <Chip label={t('Income')} count={incomeRows.length} active={filter === 'Income'} color={colors.good} onPress={() => setFilter('Income')} />
+            <Chip label={t('Expenses')} count={expenseRows.length} active={filter === 'Expenses'} color={colors.bad} onPress={() => setFilter('Expenses')} />
           </ScrollView>
-          <Eyebrow style={{ marginTop: 14, marginBottom: 10, marginLeft: 2 }}>Hold an entry to delete it</Eyebrow>
+          <Eyebrow style={{ marginTop: 14, marginBottom: 10, marginStart: 2 }}>{t('Hold an entry to delete it')}</Eyebrow>
         </>
       )}
     </View>
@@ -465,11 +467,11 @@ export default function MoneyScreen(props: {
               <View style={styles.emptyIcon}>
                 <Icon name="repeat" size={26} color={colors.brass} />
               </View>
-              <Serif size={26}>Nothing logged yet</Serif>
-              <Text style={styles.emptyText}>Log money the day it lands and spending the day it leaves. Net works itself out.</Text>
+              <Serif size={26}>{t('Nothing logged yet')}</Serif>
+              <Text style={styles.emptyText}>{t('Log money the day it lands and spending the day it leaves. Net works itself out.')}</Text>
             </View>
           ) : (
-            <Text style={[styles.emptyText, { paddingHorizontal: 40 }]}>Nothing in this filter this month.</Text>
+            <Text style={[styles.emptyText, { paddingHorizontal: 40 }]}>{t('Nothing in this filter this month.')}</Text>
           )
         }
         renderItem={({ item }) => {
@@ -482,9 +484,9 @@ export default function MoneyScreen(props: {
                   <Icon name={isIn ? 'arrow-down-left' : 'arrow-up-right'} size={16} color={tint} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.entrySource}>{item.label}</Text>
+                  <Text style={styles.entrySource}>{tv(item.label)}</Text>
                   <Text style={styles.entryMeta} numberOfLines={1}>
-                    {new Date(item.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    {fmtDate(item.at)}
                     {item.note ? ` · ${item.note}` : ''}
                   </Text>
                 </View>
@@ -534,7 +536,7 @@ function dayOptions() {
     const d = new Date();
     d.setDate(d.getDate() - i);
     out.push(
-      i === 0 ? 'Today' : i === 1 ? 'Yesterday' : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
+      i === 0 ? t('Today') : i === 1 ? t('Yesterday') : fmtDate(d, { weekday: true }),
     );
   }
   return out;
@@ -553,7 +555,7 @@ function MoneyForm(props: {
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<Currency>('EGP');
-  const [day, setDay] = useState('Today');
+  const [day, setDay] = useState(t('Today'));
   const [note, setNote] = useState('');
   const [rate, setRate] = useState(50);
   const days = useMemo(dayOptions, [props.visible]);
@@ -566,7 +568,7 @@ function MoneyForm(props: {
     setLabel(listFor(props.initialKind)[0] ?? '');
     setAmount('');
     setCurrency('EGP');
-    setDay('Today');
+    setDay(t('Today'));
     setNote('');
     getSettings().then((s) => setRate(s.usdRate));
   }, [props.visible, props.initialKind, listFor]);
@@ -584,7 +586,7 @@ function MoneyForm(props: {
 
   const save = async () => {
     if (!label || n <= 0) {
-      Alert.alert('Missing info', `Pick a ${isIn ? 'source' : 'category'} and enter an amount.`);
+      Alert.alert(t('Missing info'), isIn ? t('Pick a source and enter an amount.') : t('Pick a category and enter an amount.'));
       return;
     }
     const d = new Date();
@@ -602,7 +604,7 @@ function MoneyForm(props: {
   return (
     <Modal visible={props.visible} animationType="slide" statusBarTranslucent onRequestClose={props.onClose}>
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
-        <SheetHeader title={isIn ? 'Log income' : 'Log expense'} onClose={props.onClose} onSave={save} top={insets.top} />
+        <SheetHeader title={isIn ? t('Log income') : t('Log expense')} onClose={props.onClose} onSave={save} top={insets.top} />
         <KeyboardScroll contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
           <View style={styles.toggle}>
             {(['in', 'out'] as Kind[]).map((k) => {
@@ -615,37 +617,37 @@ function MoneyForm(props: {
                   style={[styles.toggleItem, active && { backgroundColor: k === 'in' ? colors.goodSoft : colors.badSoft, borderColor: `${c}66` }]}
                 >
                   <Icon name={k === 'in' ? 'arrow-down-left' : 'arrow-up-right'} size={16} color={active ? c : colors.muted} />
-                  <Text style={[styles.toggleText, active && { color: c }]}>{k === 'in' ? 'Income' : 'Expense'}</Text>
+                  <Text style={[styles.toggleText, active && { color: c }]}>{k === 'in' ? t('Income') : t('Expense')}</Text>
                 </Scale>
               );
             })}
           </View>
           <View style={styles.preview}>
-            <Eyebrow>{isIn ? 'Coming in' : 'Going out'}</Eyebrow>
+            <Eyebrow>{isIn ? t('Coming in') : t('Going out')}</Eyebrow>
             <Serif size={48} style={{ marginTop: 4, color: n > 0 ? accent : colors.text }}>
               {n > 0 ? (isIn ? '+' : '−') : ''}
               {formatMoney(egp, '').trim() || '0'}
             </Serif>
-            {currency === 'USD' && <Text style={styles.entryMeta}>EGP at {rate} per USD</Text>}
+            {currency === 'USD' && <Text style={styles.entryMeta}>{t('EGP at {rate} per USD', { rate })}</Text>}
           </View>
           <Select
-            label={isIn ? 'Source' : 'Category'}
+            label={isIn ? t('Source') : t('Category')}
             value={label}
             options={isIn ? props.sources : props.categories}
             onChange={setLabel}
             icon={isIn ? 'briefcase' : 'tag'}
           />
           <View style={{ flexDirection: 'row' }}>
-            <View style={{ flex: 1.6, marginRight: 10 }}>
-              <Input label="Amount" value={amount} onChange={setAmount} keyboardType="numeric" icon="dollar-sign" placeholder="0" />
+            <View style={{ flex: 1.6, marginEnd: 10 }}>
+              <Input label={t('Amount')} value={amount} onChange={setAmount} keyboardType="numeric" icon="dollar-sign" placeholder="0" />
             </View>
             <View style={{ flex: 1 }}>
-              <Select label="Currency" value={currency} options={CURRENCIES} onChange={(v) => setCurrency(v as Currency)} />
+              <Select label={t('Currency')} value={currency} options={CURRENCIES} onChange={(v) => setCurrency(v as Currency)} />
             </View>
           </View>
-          <Select label={isIn ? 'Received' : 'Spent on'} value={day} options={days} onChange={setDay} icon="calendar" />
-          <Input label="Note" value={note} onChange={setNote} icon="edit-3" placeholder="Optional" />
-          <Button title={isIn ? 'Save income' : 'Save expense'} icon="check" onPress={save} style={{ marginTop: 6 }} />
+          <Select label={isIn ? t('Received') : t('Spent on')} value={day} options={days} onChange={setDay} icon="calendar" />
+          <Input label={t('Note')} value={note} onChange={setNote} icon="edit-3" placeholder={t('Optional')} />
+          <Button title={isIn ? t('Save income') : t('Save expense')} icon="check" onPress={save} style={{ marginTop: 6 }} />
         </KeyboardScroll>
       </View>
     </Modal>
@@ -664,9 +666,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  year: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 12, letterSpacing: 1 },
+  year: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 12, letterSpacing: ls(1) },
   heroRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 6 },
-  heroUnit: { color: colors.textDim, fontFamily: fonts.semibold, fontSize: 15, marginLeft: 8, marginBottom: 10 },
+  heroUnit: { color: colors.textDim, fontFamily: fonts.semibold, fontSize: 15, marginStart: 8, marginBottom: 10 },
   delta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -676,7 +678,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     marginTop: 8,
   },
-  deltaText: { fontFamily: fonts.bold, fontSize: 12, marginLeft: 5 },
+  deltaText: { fontFamily: fonts.bold, fontSize: 12, marginStart: 5 },
   statsRow: { flexDirection: 'row', marginTop: 18, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.line },
   stat: { flex: 1 },
   statNum: { color: colors.text, fontFamily: fonts.bold, fontSize: 18 },
@@ -695,7 +697,7 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     marginBottom: 14,
   },
-  futureText: { color: colors.brass, fontFamily: fonts.semibold, fontSize: 13, marginLeft: 10, flex: 1, lineHeight: 18 },
+  futureText: { color: colors.brass, fontFamily: fonts.semibold, fontSize: 13, marginStart: 10, flex: 1, lineHeight: lh(18) },
   planHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   planEdit: {
     flexDirection: 'row',
@@ -705,17 +707,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  planEditText: { color: colors.brass, fontFamily: fonts.bold, fontSize: 12, marginLeft: 5 },
+  planEditText: { color: colors.brass, fontFamily: fonts.bold, fontSize: 12, marginStart: 5 },
   planRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 6 },
-  planName: { color: colors.text, fontFamily: fonts.semibold, fontSize: 14, flex: 1, marginRight: 10 },
+  planName: { color: colors.text, fontFamily: fonts.semibold, fontSize: 14, flex: 1, marginEnd: 10 },
   planNums: { color: colors.textDim, fontFamily: fonts.bold, fontSize: 13 },
   planTrack: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceHi, overflow: 'hidden' },
   planFill: { height: 6, borderRadius: 3 },
   planFooter: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 14 },
-  planFooterText: { fontFamily: fonts.semibold, fontSize: 13, marginLeft: 8, flex: 1 },
-  planEmpty: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, lineHeight: 19 },
+  planFooterText: { fontFamily: fonts.semibold, fontSize: 13, marginStart: 8, flex: 1 },
+  planEmpty: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, lineHeight: lh(19) },
   depRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
-  depText: { fontFamily: fonts.semibold, fontSize: 13, marginLeft: 8, flex: 1 },
+  depText: { fontFamily: fonts.semibold, fontSize: 13, marginStart: 8, flex: 1 },
   card: {
     backgroundColor: colors.surface,
     borderRadius: 20,
@@ -730,7 +732,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
   },
-  swatch: { width: 10, height: 10, borderRadius: 3, marginRight: 12 },
+  swatch: { width: 10, height: 10, borderRadius: 3, marginEnd: 12 },
   sourceName: { color: colors.text, fontFamily: fonts.semibold, fontSize: 15, flex: 1 },
   sourcePct: { color: colors.muted, fontFamily: fonts.bold, fontSize: 13, width: 46, textAlign: 'right' },
   sourceAmt: { color: colors.text, fontFamily: fonts.bold, fontSize: 14, width: 110, textAlign: 'right' },
@@ -744,7 +746,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     marginBottom: 10,
   },
-  entryIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  entryIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginEnd: 12 },
   entrySource: { color: colors.text, fontFamily: fonts.bold, fontSize: 15 },
   entryMeta: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 },
   amount: { fontFamily: fonts.bold, fontSize: 15 },
@@ -758,7 +760,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
   },
-  emptyText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  emptyText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: lh(20) },
   toggle: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
@@ -778,7 +780,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  toggleText: { color: colors.muted, fontFamily: fonts.bold, fontSize: 15, marginLeft: 8 },
+  toggleText: { color: colors.muted, fontFamily: fonts.bold, fontSize: 15, marginStart: 8 },
   preview: {
     alignItems: 'center',
     paddingVertical: 22,
