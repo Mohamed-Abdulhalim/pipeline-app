@@ -153,6 +153,12 @@ export async function initDb(): Promise<void> {
   if (!cols.some((c) => c.name === 'subcategory')) {
     await db.execAsync("ALTER TABLE expenses ADD COLUMN subcategory TEXT NOT NULL DEFAULT ''");
   }
+  for (const table of ['categories', 'subcategories']) {
+    const tc = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+    if (!tc.some((c) => c.name === 'due_day')) {
+      await db.execAsync(`ALTER TABLE ${table} ADD COLUMN due_day INTEGER NOT NULL DEFAULT 0`);
+    }
+  }
   const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM sources');
   if (!count || count.c === 0) {
     await db.runAsync('INSERT INTO sources (name, sort) VALUES (?, ?)', 'Salary', 0);
@@ -172,9 +178,23 @@ export async function getCategories(): Promise<string[]> {
   return rows.map((r) => r.name);
 }
 
-export async function addCategory(name: string): Promise<void> {
+export async function addCategory(name: string, dueDay = 0): Promise<void> {
   const max = await db.getFirstAsync<{ m: number | null }>('SELECT MAX(sort) AS m FROM categories');
-  await db.runAsync('INSERT OR IGNORE INTO categories (name, sort) VALUES (?, ?)', name, (max?.m ?? 0) + 1);
+  await db.runAsync('INSERT OR IGNORE INTO categories (name, sort, due_day) VALUES (?, ?, ?)', name, (max?.m ?? 0) + 1, dueDay);
+}
+
+export async function getDueDays(): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  const cats = await db.getAllAsync<{ name: string; due_day: number }>('SELECT name, due_day FROM categories WHERE due_day > 0');
+  for (const c of cats) out[c.name] = c.due_day;
+  const subs = await db.getAllAsync<{ category: string; name: string; due_day: number }>('SELECT category, name, due_day FROM subcategories WHERE due_day > 0');
+  for (const r of subs) out[`${r.category}${SUB_SEP}${r.name}`] = r.due_day;
+  return out;
+}
+
+export async function setDueDay(category: string, sub: string | undefined, day: number): Promise<void> {
+  if (sub) await db.runAsync('UPDATE subcategories SET due_day = ? WHERE category = ? AND name = ?', day, category, sub);
+  else await db.runAsync('UPDATE categories SET due_day = ? WHERE name = ?', day, category);
 }
 
 export async function removeCategory(name: string): Promise<void> {
@@ -220,11 +240,11 @@ export async function getSubcategories(): Promise<Record<string, string[]>> {
   return out;
 }
 
-export async function addSubcategory(category: string, name: string): Promise<boolean> {
+export async function addSubcategory(category: string, name: string, dueDay = 0): Promise<boolean> {
   const clash = await db.getFirstAsync('SELECT 1 FROM subcategories WHERE category = ? AND name = ?', category, name);
   if (clash) return false;
   const max = await db.getFirstAsync<{ m: number | null }>('SELECT MAX(sort) AS m FROM subcategories WHERE category = ?', category);
-  await db.runAsync('INSERT INTO subcategories (category, name, sort) VALUES (?, ?, ?)', category, name, (max?.m ?? 0) + 1);
+  await db.runAsync('INSERT INTO subcategories (category, name, sort, due_day) VALUES (?, ?, ?, ?)', category, name, (max?.m ?? 0) + 1, dueDay);
   return true;
 }
 
@@ -451,7 +471,8 @@ export type Backup = {
   plans?: PlanLine[];
   sources: string[];
   categories?: string[];
-  subcategories?: { category: string; name: string; sort: number }[];
+  subcategories?: { category: string; name: string; sort: number; due_day?: number }[];
+  due_days?: Record<string, number>;
   settings: Settings;
 };
 
@@ -467,7 +488,8 @@ export async function exportAll(): Promise<Backup> {
     plans: await db.getAllAsync<PlanLine>('SELECT * FROM plan_lines'),
     sources: await getSources(),
     categories: await getCategories(),
-    subcategories: await db.getAllAsync<{ category: string; name: string; sort: number }>('SELECT * FROM subcategories'),
+    subcategories: await db.getAllAsync<{ category: string; name: string; sort: number; due_day?: number }>('SELECT * FROM subcategories'),
+    due_days: await getDueDays(),
     settings: await getSettings(),
   };
 }
@@ -479,7 +501,10 @@ export async function importAll(data: Backup): Promise<void> {
     );
     await seedCategories(data.categories?.length ? data.categories : DEFAULT_CATEGORIES);
     for (const sc of data.subcategories ?? []) {
-      await db.runAsync('INSERT OR IGNORE INTO subcategories (category, name, sort) VALUES (?, ?, ?)', sc.category, sc.name, sc.sort ?? 0);
+      await db.runAsync('INSERT OR IGNORE INTO subcategories (category, name, sort, due_day) VALUES (?, ?, ?, ?)', sc.category, sc.name, sc.sort ?? 0, sc.due_day ?? 0);
+    }
+    for (const [name, day] of Object.entries(data.due_days ?? {})) {
+      if (!name.includes(SUB_SEP)) await db.runAsync('UPDATE categories SET due_day = ? WHERE name = ?', day, name);
     }
     for (const l of data.plans ?? []) {
       await db.runAsync('INSERT OR REPLACE INTO plan_lines (month, kind, label, amount) VALUES (?, ?, ?, ?)', l.month, l.kind, l.label, l.amount);

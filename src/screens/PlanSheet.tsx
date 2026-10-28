@@ -1,12 +1,15 @@
 import { lh, monthName as i18nMonth, t, tv } from '../i18n';
+import Storage from 'expo-sqlite/kv-store';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, Eyebrow, formatMoney, Icon, IconName, KeyboardScroll, SheetHeader, success, useKeyboardFocus } from '../components/ui';
+import { Button, Eyebrow, formatMoney, Icon, IconName, KeyboardScroll, Select, SheetHeader, success, useKeyboardFocus } from '../components/ui';
 import {
   addCategory,
   addSubcategory,
   getCategories,
+  getDueDays,
+  setDueDay,
   getPlan,
   getSubcategories,
   PlanKind,
@@ -35,7 +38,21 @@ const subLabel = (cat: string, sub: string) => `${cat}${SUB_SEP}${sub}`;
 const num = (v: string | undefined) => Number((v ?? '').replace(/,/g, '')) || 0;
 
 type Menu = { cat: string; sub?: string } | null;
-type Prompt = { mode: 'addCat' | 'renameCat' | 'addSub' | 'renameSub'; cat?: string; sub?: string; text: string } | null;
+type Prompt = { mode: 'addCat' | 'renameCat' | 'addSub' | 'renameSub'; cat?: string; sub?: string; text: string; day: number } | null;
+type SortMode = 'manual' | 'amount' | 'date';
+
+function readSort(): SortMode {
+  try {
+    const v = Storage.getItemSync('planSort');
+    return v === 'amount' || v === 'date' ? v : 'manual';
+  } catch {
+    return 'manual';
+  }
+}
+
+const SORT_LABELS = (): Record<SortMode, string> => ({ manual: t('My order'), amount: t('Amount, highest first'), date: t('Due date, earliest first') });
+
+const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1));
 
 function MoreButton(props: { onPress: () => void }) {
   return (
@@ -51,6 +68,7 @@ function AmountRow(props: {
   onChange: (v: string) => void;
   accent: string;
   indent?: boolean;
+  due?: number;
   onMenu?: () => void;
   onCommit?: () => void;
 }) {
@@ -88,9 +106,12 @@ function AmountRow(props: {
 
   return (
     <Pressable onPress={() => setEditing(true)} style={[styles.row, props.indent && styles.rowIndent, editing && { borderColor: props.accent }]}>
-      <Text style={[styles.rowLabel, props.indent && styles.rowLabelSub]} numberOfLines={1}>
-        {tv(props.label)}
-      </Text>
+      <View style={styles.rowLabelWrap}>
+        <Text style={[styles.rowLabel, props.indent && styles.rowLabelSub]} numberOfLines={1}>
+          {tv(props.label)}
+        </Text>
+        {!!props.due && <Text style={styles.rowDue}>{t('Due day {n}', { n: props.due })}</Text>}
+      </View>
       {editing ? (
         <TextInput
           ref={kb.ref}
@@ -121,12 +142,15 @@ function AmountRow(props: {
   );
 }
 
-function GroupRow(props: { label: string; total: number; onMenu: () => void }) {
+function GroupRow(props: { label: string; total: number; due?: number; onMenu: () => void }) {
   return (
     <View style={[styles.row, styles.groupRow]}>
-      <Text style={styles.rowLabel} numberOfLines={1}>
-        {tv(props.label)}
-      </Text>
+      <View style={styles.rowLabelWrap}>
+        <Text style={styles.rowLabel} numberOfLines={1}>
+          {tv(props.label)}
+        </Text>
+        {!!props.due && <Text style={styles.rowDue}>{t('Due day {n}', { n: props.due })}</Text>}
+      </View>
       <Text style={[styles.rowInput, styles.rowValue, { color: colors.bad }]} numberOfLines={1}>
         {formatMoney(props.total, '').trim()}
       </Text>
@@ -180,10 +204,13 @@ function NamePrompt(props: {
   title: string;
   value: string;
   onChange: (v: string) => void;
+  day: number;
+  onDay: (d: number) => void;
   onCancel: () => void;
   onDone: () => void;
   top: number;
 }) {
+  const none = t('No date');
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={props.onCancel}>
       <View style={[styles.backdrop, { justifyContent: 'flex-start', paddingTop: props.top + 70, paddingHorizontal: 20 }]}>
@@ -203,7 +230,16 @@ function NamePrompt(props: {
             selectionColor={colors.brass}
             cursorColor={colors.brass}
           />
-          <View style={{ flexDirection: 'row', marginTop: 14 }}>
+          <View style={{ marginTop: 12 }}>
+            <Select
+              label={t('Due day of the month')}
+              value={props.day ? String(props.day) : none}
+              options={[none, ...DAYS]}
+              onChange={(v) => props.onDay(v === none ? 0 : Number(v))}
+              icon="calendar"
+            />
+          </View>
+          <View style={{ flexDirection: 'row', marginTop: 4 }}>
             <View style={{ flex: 1, marginEnd: 8 }}>
               <Button title={t('Cancel')} variant="ghost" onPress={props.onCancel} />
             </View>
@@ -233,6 +269,8 @@ export default function PlanSheet(props: {
   const [subs, setSubs] = useState<Record<string, string[]>>({});
   const [menu, setMenu] = useState<Menu>(null);
   const [prompt, setPrompt] = useState<Prompt>(null);
+  const [due, setDue] = useState<Record<string, number>>({});
+  const [sortMode, setSortMode] = useState<SortMode>(readSort);
   const month = { key: monthKeyState, name: monthName(monthKeyState) };
   const sourcesRef = useRef(props.sources);
   sourcesRef.current = props.sources;
@@ -245,13 +283,14 @@ export default function PlanSheet(props: {
     if (!props.visible) return;
     let live = true;
     (async () => {
-      const [lines, categories, subMap] = await Promise.all([getPlan(month.key), getCategories(), getSubcategories()]);
+      const [lines, categories, subMap, dueMap] = await Promise.all([getPlan(month.key), getCategories(), getSubcategories(), getDueDays()]);
       if (!live) return;
       const v: Record<string, string> = {};
       for (const l of lines) v[k(l.kind, l.label)] = String(Math.round(l.amount));
       setValues(v);
       setCats(categories);
       setSubs(subMap);
+      setDue(dueMap);
       setExtra({
         income: lines.filter((l) => l.kind === 'income' && !sourcesRef.current.includes(l.label)).map((l) => l.label),
         expense: lines.filter((l) => l.kind === 'expense' && !categories.includes(l.label)).map((l) => l.label),
@@ -269,6 +308,15 @@ export default function PlanSheet(props: {
     if (list?.length) return list.reduce((a, s) => a + num(values[k('sub', subLabel(c, s))]), 0);
     return num(values[k('expense', c)]);
   };
+
+  const dueOf = (cat: string, sub?: string) => due[sub ? subLabel(cat, sub) : cat] ?? 0;
+  const ordered = (list: string[], amountOf: (n: string) => number, dueFor: (n: string) => number) => {
+    if (sortMode === 'amount') return [...list].sort((a, b) => amountOf(b) - amountOf(a));
+    if (sortMode === 'date') return [...list].sort((a, b) => (dueFor(a) || 99) - (dueFor(b) || 99));
+    return list;
+  };
+  const shownCats = ordered(cats, catTotal, (c) => dueOf(c));
+  const shownSubs = (c: string) => ordered(subs[c] ?? [], (n) => num(values[k('sub', subLabel(c, n))]), (n) => dueOf(c, n));
 
   const income = incomeLabels.reduce((a, l) => a + num(values[k('income', l)]), 0);
   const spending = cats.reduce((a, c) => a + catTotal(c), 0) + extra.expense.reduce((a, l) => a + num(values[k('expense', l)]), 0);
@@ -310,12 +358,12 @@ export default function PlanSheet(props: {
     if (!name) return;
     if (prompt.mode === 'addCat') {
       if (cats.includes(name)) return duplicate();
-      await addCategory(name);
+      await addCategory(name, prompt.day);
       setCats([...cats, name]);
     } else if (prompt.mode === 'renameCat' && prompt.cat) {
       const from = prompt.cat;
-      if (name === from) return setPrompt(null);
       if (!(await renameCategory(from, name))) return duplicate();
+      await setDueDay(name, undefined, prompt.day);
       setCats(cats.map((c) => (c === from ? name : c)));
       setSubs((cur) => {
         const { [from]: list, ...rest } = cur;
@@ -332,7 +380,7 @@ export default function PlanSheet(props: {
       });
     } else if (prompt.mode === 'addSub' && prompt.cat) {
       const cat = prompt.cat;
-      if (!(await addSubcategory(cat, name))) return duplicate();
+      if (!(await addSubcategory(cat, name, prompt.day))) return duplicate();
       const first = !(subs[cat]?.length);
       setSubs((cur) => ({ ...cur, [cat]: [...(cur[cat] ?? []), name] }));
       if (first) {
@@ -345,8 +393,8 @@ export default function PlanSheet(props: {
       }
     } else if (prompt.mode === 'renameSub' && prompt.cat && prompt.sub) {
       const { cat, sub } = prompt;
-      if (name === sub) return setPrompt(null);
       if (!(await renameSubcategory(cat, sub, name))) return duplicate();
+      await setDueDay(cat, name, prompt.day);
       setSubs((cur) => ({ ...cur, [cat]: (cur[cat] ?? []).map((s) => (s === sub ? name : s)) }));
       setValues((cur) => {
         const out: Record<string, string> = {};
@@ -356,6 +404,7 @@ export default function PlanSheet(props: {
         return out;
       });
     }
+    setDue(await getDueDays());
     setPrompt(null);
     props.onCategoriesChanged();
   };
@@ -411,6 +460,7 @@ export default function PlanSheet(props: {
   };
 
   const moveActions = (cat: string, sub?: string) => {
+    if (sortMode !== 'manual') return [];
     const list = sub ? subs[cat] ?? [] : cats;
     const i = list.indexOf(sub ?? cat);
     const out: { label: string; icon: IconName; onPress: () => void }[] = [];
@@ -425,14 +475,14 @@ export default function PlanSheet(props: {
     if (sub) {
       return [
         ...moveActions(cat, sub),
-        { label: t('Rename'), icon: 'edit-2' as IconName, onPress: () => { setMenu(null); setPrompt({ mode: 'renameSub', cat, sub, text: sub }); } },
+        { label: t('Edit'), icon: 'edit-2' as IconName, onPress: () => { setMenu(null); setPrompt({ mode: 'renameSub', cat, sub, text: sub, day: dueOf(cat, sub) }); } },
         { label: t('Delete'), icon: 'trash-2' as IconName, danger: true, onPress: () => { setMenu(null); confirmDelete(cat, sub); } },
       ];
     }
     return [
       ...moveActions(cat),
-      { label: t('Rename'), icon: 'edit-2' as IconName, onPress: () => { setMenu(null); setPrompt({ mode: 'renameCat', cat, text: cat }); } },
-      { label: t('Add subcategory'), icon: 'corner-down-right' as IconName, onPress: () => { setMenu(null); setPrompt({ mode: 'addSub', cat, text: '' }); } },
+      { label: t('Edit'), icon: 'edit-2' as IconName, onPress: () => { setMenu(null); setPrompt({ mode: 'renameCat', cat, text: cat, day: dueOf(cat) }); } },
+      { label: t('Add subcategory'), icon: 'corner-down-right' as IconName, onPress: () => { setMenu(null); setPrompt({ mode: 'addSub', cat, text: '', day: 0 }); } },
       { label: t('Delete'), icon: 'trash-2' as IconName, danger: true, onPress: () => { setMenu(null); confirmDelete(cat); } },
     ];
   };
@@ -440,9 +490,9 @@ export default function PlanSheet(props: {
   const promptTitle = () => {
     if (!prompt) return '';
     if (prompt.mode === 'addCat') return t('New category');
-    if (prompt.mode === 'renameCat') return t('Rename category');
+    if (prompt.mode === 'renameCat') return t('Edit category');
     if (prompt.mode === 'addSub') return t('New subcategory in {cat}', { cat: tv(prompt.cat ?? '') });
-    return t('Rename subcategory');
+    return t('Edit subcategory');
   };
 
   return (
@@ -477,11 +527,26 @@ export default function PlanSheet(props: {
             ))}
           </Section>
           <Section title={t('Spending budget')} icon="arrow-up-right" total={spending} accent={colors.bad}>
+            <Select
+              label={t('Sort by')}
+              value={SORT_LABELS()[sortMode]}
+              options={Object.values(SORT_LABELS())}
+              icon="bar-chart-2"
+              onChange={(v) => {
+                const next = (Object.keys(SORT_LABELS()) as SortMode[]).find((m) => SORT_LABELS()[m] === v) ?? 'manual';
+                setSortMode(next);
+                try {
+                  Storage.setItemSync('planSort', next);
+                } catch {
+                  return;
+                }
+              }}
+            />
             {extra.expense.map((l) => (
               <AmountRow key={l} label={l} value={values[k('expense', l)] ?? ''} onChange={set(k('expense', l))} accent={colors.bad} />
             ))}
-            {cats.map((c) => {
-              const list = subs[c] ?? [];
+            {shownCats.map((c) => {
+              const list = shownSubs(c);
               if (!list.length) {
                 return (
                   <AmountRow
@@ -490,13 +555,14 @@ export default function PlanSheet(props: {
                     value={values[k('expense', c)] ?? ''}
                     onChange={set(k('expense', c))}
                     accent={colors.bad}
+                    due={dueOf(c)}
                     onMenu={() => setMenu({ cat: c })}
                   />
                 );
               }
               return (
                 <View key={c}>
-                  <GroupRow label={c} total={catTotal(c)} onMenu={() => setMenu({ cat: c })} />
+                  <GroupRow label={c} total={catTotal(c)} due={dueOf(c)} onMenu={() => setMenu({ cat: c })} />
                   {list.map((sName) => (
                     <AmountRow
                       key={sName}
@@ -505,13 +571,14 @@ export default function PlanSheet(props: {
                       value={values[k('sub', subLabel(c, sName))] ?? ''}
                       onChange={set(k('sub', subLabel(c, sName)))}
                       accent={colors.bad}
+                      due={dueOf(c, sName)}
                       onMenu={() => setMenu({ cat: c, sub: sName })}
                     />
                   ))}
                 </View>
               );
             })}
-            <Pressable onPress={() => setPrompt({ mode: 'addCat', text: '' })} style={styles.addCat}>
+            <Pressable onPress={() => setPrompt({ mode: 'addCat', text: '', day: 0 })} style={styles.addCat}>
               <Icon name="plus" size={16} color={colors.brass} />
               <Text style={styles.addCatText}>{t('Add category')}</Text>
             </Pressable>
@@ -537,6 +604,8 @@ export default function PlanSheet(props: {
             title={promptTitle()}
             value={prompt.text}
             onChange={(text) => setPrompt({ ...prompt, text })}
+            day={prompt.day}
+            onDay={(day) => setPrompt({ ...prompt, day })}
             onCancel={closeMenus}
             onDone={submitPrompt}
             top={insets.top}
@@ -595,10 +664,13 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     paddingStart: 14,
     paddingEnd: 12,
-    height: 54,
+    minHeight: 54,
+    paddingVertical: 6,
     marginBottom: 8,
   },
-  rowLabel: { flex: 1, color: colors.text, fontFamily: fonts.semibold, fontSize: 15, marginEnd: 10 },
+  rowLabelWrap: { flex: 1, marginEnd: 10 },
+  rowLabel: { color: colors.text, fontFamily: fonts.semibold, fontSize: 15 },
+  rowDue: { color: colors.muted, fontFamily: fonts.medium, fontSize: 11, marginTop: 1 },
   rowInput: {
     width: 120,
     textAlign: 'right',
@@ -608,7 +680,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   rowValue: { paddingVertical: 10 },
-  rowIndent: { marginStart: 18, height: 48, backgroundColor: colors.bg },
+  rowIndent: { marginStart: 18, minHeight: 48, backgroundColor: colors.bg },
   rowLabelSub: { fontFamily: fonts.medium, fontSize: 14, color: colors.textDim },
   groupRow: { backgroundColor: colors.badSoft, borderColor: 'transparent' },
   more: { width: 30, height: 30, marginStart: 4, marginEnd: -6, alignItems: 'center', justifyContent: 'center' },
