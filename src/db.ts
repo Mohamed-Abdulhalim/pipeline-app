@@ -40,6 +40,7 @@ export type Expense = {
   amount_egp: number;
   spent_at: number;
   note: string;
+  subcategory: string;
 };
 
 export type SavingKind = 'save' | 'withdraw';
@@ -55,7 +56,9 @@ export type Saving = {
   hidden: number;
 };
 
-export type PlanKind = 'income' | 'expense' | 'saving';
+export type PlanKind = 'income' | 'expense' | 'saving' | 'sub';
+
+export const SUB_SEP = ' \u203A ';
 
 export type PlanLine = {
   month: string;
@@ -122,6 +125,12 @@ export async function initDb(): Promise<void> {
       name TEXT PRIMARY KEY,
       sort INTEGER NOT NULL DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS subcategories (
+      category TEXT NOT NULL,
+      name TEXT NOT NULL,
+      sort INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (category, name)
+    );
     CREATE TABLE IF NOT EXISTS plan_lines (
       month TEXT NOT NULL,
       kind TEXT NOT NULL,
@@ -140,6 +149,10 @@ export async function initDb(): Promise<void> {
       hidden INTEGER NOT NULL DEFAULT 0
     );
   `);
+  const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(expenses)');
+  if (!cols.some((c) => c.name === 'subcategory')) {
+    await db.execAsync("ALTER TABLE expenses ADD COLUMN subcategory TEXT NOT NULL DEFAULT ''");
+  }
   const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM sources');
   if (!count || count.c === 0) {
     await db.runAsync('INSERT INTO sources (name, sort) VALUES (?, ?)', 'Salary', 0);
@@ -166,6 +179,57 @@ export async function addCategory(name: string): Promise<void> {
 
 export async function removeCategory(name: string): Promise<void> {
   await db.runAsync('DELETE FROM categories WHERE name = ?', name);
+  await db.runAsync('DELETE FROM subcategories WHERE category = ?', name);
+}
+
+export async function renameCategory(from: string, to: string): Promise<boolean> {
+  if (from === to) return true;
+  const clash = await db.getFirstAsync('SELECT 1 FROM categories WHERE name = ?', to);
+  if (clash) return false;
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('UPDATE categories SET name = ? WHERE name = ?', to, from);
+    await db.runAsync('UPDATE subcategories SET category = ? WHERE category = ?', to, from);
+    await db.runAsync('UPDATE expenses SET category = ? WHERE category = ?', to, from);
+    await db.runAsync("UPDATE plan_lines SET label = ? WHERE kind = 'expense' AND label = ?", to, from);
+    await db.runAsync(
+      "UPDATE plan_lines SET label = ? || substr(label, ?) WHERE kind = 'sub' AND label LIKE ? ESCAPE '\\'",
+      to,
+      from.length + 1,
+      `${from.replace(/[\\%_]/g, (m) => `\\${m}`)}${SUB_SEP}%`,
+    );
+  });
+  return true;
+}
+
+export async function getSubcategories(): Promise<Record<string, string[]>> {
+  const rows = await db.getAllAsync<{ category: string; name: string }>('SELECT category, name FROM subcategories ORDER BY sort, name');
+  const out: Record<string, string[]> = {};
+  for (const r of rows) (out[r.category] ??= []).push(r.name);
+  return out;
+}
+
+export async function addSubcategory(category: string, name: string): Promise<boolean> {
+  const clash = await db.getFirstAsync('SELECT 1 FROM subcategories WHERE category = ? AND name = ?', category, name);
+  if (clash) return false;
+  const max = await db.getFirstAsync<{ m: number | null }>('SELECT MAX(sort) AS m FROM subcategories WHERE category = ?', category);
+  await db.runAsync('INSERT INTO subcategories (category, name, sort) VALUES (?, ?, ?)', category, name, (max?.m ?? 0) + 1);
+  return true;
+}
+
+export async function renameSubcategory(category: string, from: string, to: string): Promise<boolean> {
+  if (from === to) return true;
+  const clash = await db.getFirstAsync('SELECT 1 FROM subcategories WHERE category = ? AND name = ?', category, to);
+  if (clash) return false;
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('UPDATE subcategories SET name = ? WHERE category = ? AND name = ?', to, category, from);
+    await db.runAsync('UPDATE expenses SET subcategory = ? WHERE category = ? AND subcategory = ?', to, category, from);
+    await db.runAsync("UPDATE plan_lines SET label = ? WHERE kind = 'sub' AND label = ?", `${category}${SUB_SEP}${to}`, `${category}${SUB_SEP}${from}`);
+  });
+  return true;
+}
+
+export async function removeSubcategory(category: string, name: string): Promise<void> {
+  await db.runAsync('DELETE FROM subcategories WHERE category = ? AND name = ?', category, name);
 }
 
 export async function getExpensesBetween(from: number, to: number): Promise<Expense[]> {
@@ -178,8 +242,9 @@ export async function getExpensesBetween(from: number, to: number): Promise<Expe
 
 export async function insertExpense(input: Omit<Expense, 'id'>): Promise<void> {
   await db.runAsync(
-    'INSERT INTO expenses (category, amount, currency, amount_egp, spent_at, note) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO expenses (category, subcategory, amount, currency, amount_egp, spent_at, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
     input.category,
+    input.subcategory,
     input.amount,
     input.currency,
     input.amount_egp,
@@ -374,6 +439,7 @@ export type Backup = {
   plans?: PlanLine[];
   sources: string[];
   categories?: string[];
+  subcategories?: { category: string; name: string; sort: number }[];
   settings: Settings;
 };
 
@@ -389,6 +455,7 @@ export async function exportAll(): Promise<Backup> {
     plans: await db.getAllAsync<PlanLine>('SELECT * FROM plan_lines'),
     sources: await getSources(),
     categories: await getCategories(),
+    subcategories: await db.getAllAsync<{ category: string; name: string; sort: number }>('SELECT * FROM subcategories'),
     settings: await getSettings(),
   };
 }
@@ -396,9 +463,12 @@ export async function exportAll(): Promise<Backup> {
 export async function importAll(data: Backup): Promise<void> {
   await db.withTransactionAsync(async () => {
     await db.execAsync(
-      'DELETE FROM items; DELETE FROM income; DELETE FROM expenses; DELETE FROM savings; DELETE FROM plan_lines; DELETE FROM sources; DELETE FROM categories; DELETE FROM settings;',
+      'DELETE FROM items; DELETE FROM income; DELETE FROM expenses; DELETE FROM savings; DELETE FROM plan_lines; DELETE FROM sources; DELETE FROM categories; DELETE FROM subcategories; DELETE FROM settings;',
     );
     await seedCategories(data.categories?.length ? data.categories : DEFAULT_CATEGORIES);
+    for (const sc of data.subcategories ?? []) {
+      await db.runAsync('INSERT OR IGNORE INTO subcategories (category, name, sort) VALUES (?, ?, ?)', sc.category, sc.name, sc.sort ?? 0);
+    }
     for (const l of data.plans ?? []) {
       await db.runAsync('INSERT OR REPLACE INTO plan_lines (month, kind, label, amount) VALUES (?, ?, ?, ?)', l.month, l.kind, l.label, l.amount);
     }
@@ -417,9 +487,10 @@ export async function importAll(data: Backup): Promise<void> {
     }
     for (const e of data.expenses ?? []) {
       await db.runAsync(
-        'INSERT INTO expenses (id, category, amount, currency, amount_egp, spent_at, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO expenses (id, category, subcategory, amount, currency, amount_egp, spent_at, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         e.id,
         e.category,
+        e.subcategory ?? '',
         e.amount,
         e.currency,
         e.amount_egp,

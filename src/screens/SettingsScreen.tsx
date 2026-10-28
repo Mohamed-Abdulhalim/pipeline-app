@@ -16,7 +16,7 @@ import {
   Serif,
   success,
 } from '../components/ui';
-import { addCategory, addSource, getSettings, removeCategory, removeSource, saveSetting } from '../db';
+import { addSource, getSettings, removeSource, saveSetting } from '../db';
 import { rescheduleAll } from '../notify';
 import { colors, fonts } from '../theme';
 
@@ -247,22 +247,6 @@ export default function SettingsScreen(props: {
           }}
           onRemove={async (n) => {
             await removeSource(n);
-            props.bump();
-          }}
-        />
-      </Section>
-
-      <Section title={t('Expense categories')} icon="tag" hint={t('These fill the Category dropdown when you log an expense.')}>
-        <ListEditor
-          items={props.categories}
-          noun="category"
-          placeholder={t('e.g. Internet')}
-          onAdd={async (n) => {
-            await addCategory(n);
-            props.bump();
-          }}
-          onRemove={async (n) => {
-            await removeCategory(n);
             props.bump();
           }}
         />

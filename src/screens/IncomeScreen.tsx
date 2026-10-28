@@ -29,6 +29,7 @@ import {
   getSavingsBetween,
   getSettings,
   getPlan,
+  getSubcategories,
   insertExpense,
   insertIncome,
   monthKey,
@@ -43,7 +44,7 @@ const SPEND_PALETTE = ['#D98585', '#E6B05C', '#A99BE0', '#7FA6D9', '#6CC3C9', '#
 
 type Kind = 'in' | 'out';
 type Filter = 'All' | 'Income' | 'Expenses';
-type Row = { kind: Kind; id: number; label: string; amount: number; currency: Currency; egp: number; at: number; note: string };
+type Row = { kind: Kind; id: number; label: string; sub?: string; amount: number; currency: Currency; egp: number; at: number; note: string };
 
 function monthRange(offset: number) {
   const now = new Date();
@@ -283,7 +284,7 @@ export default function MoneyScreen(props: {
     setSavedVisible(savingsNet(sav, settings.showHidden === 1));
     const merged: Row[] = [
       ...inc.map((r) => ({ kind: 'in' as Kind, id: r.id, label: r.source, amount: r.amount, currency: r.currency, egp: r.amount_egp, at: r.received_at, note: r.note })),
-      ...exp.map((r) => ({ kind: 'out' as Kind, id: r.id, label: r.category, amount: r.amount, currency: r.currency, egp: r.amount_egp, at: r.spent_at, note: r.note })),
+      ...exp.map((r) => ({ kind: 'out' as Kind, id: r.id, label: r.category, sub: r.subcategory, amount: r.amount, currency: r.currency, egp: r.amount_egp, at: r.spent_at, note: r.note })),
     ].sort((a, b) => b.at - a.at || (a.kind === b.kind ? b.id - a.id : a.kind === 'in' ? -1 : 1));
     setRows(merged);
     const hadPrev = pInc.length + pExp.length + pSav.length > 0;
@@ -484,7 +485,10 @@ export default function MoneyScreen(props: {
                   <Icon name={isIn ? 'arrow-down-left' : 'arrow-up-right'} size={16} color={tint} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.entrySource}>{tv(item.label)}</Text>
+                  <Text style={styles.entrySource}>
+                    {tv(item.label)}
+                    {item.sub ? ` · ${item.sub}` : ''}
+                  </Text>
                   <Text style={styles.entryMeta} numberOfLines={1}>
                     {fmtDate(item.at)}
                     {item.note ? ` · ${item.note}` : ''}
@@ -507,7 +511,7 @@ export default function MoneyScreen(props: {
         visible={planOpen}
         initialMonth={planMonth}
         sources={props.sources}
-        categories={props.categories}
+        onCategoriesChanged={props.bump}
         onClose={() => setPlanOpen(false)}
         onSaved={() => {
           setPlanOpen(false);
@@ -553,6 +557,8 @@ function MoneyForm(props: {
   const insets = useSafeAreaInsets();
   const [kind, setKind] = useState<Kind>('in');
   const [label, setLabel] = useState('');
+  const [sub, setSub] = useState('');
+  const [subMap, setSubMap] = useState<Record<string, string[]>>({});
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<Currency>('EGP');
   const [day, setDay] = useState(t('Today'));
@@ -570,6 +576,8 @@ function MoneyForm(props: {
     setCurrency('EGP');
     setDay(t('Today'));
     setNote('');
+    setSub('');
+    getSubcategories().then(setSubMap);
     getSettings().then((s) => setRate(s.usdRate));
   }, [props.visible, props.initialKind, listFor]);
 
@@ -577,7 +585,11 @@ function MoneyForm(props: {
     if (k === kind) return;
     setKind(k);
     setLabel(listFor(k)[0] ?? '');
+    setSub('');
   };
+
+  const subOptions = kind === 'out' ? subMap[label] ?? [] : [];
+  const NO_SUB = t('None');
 
   const n = Number(amount.replace(/,/g, '')) || 0;
   const egp = currency === 'USD' ? n * rate : n;
@@ -595,7 +607,7 @@ function MoneyForm(props: {
     if (isIn) {
       await insertIncome({ source: label, amount: n, currency, amount_egp: egp, received_at: d.getTime(), note: note.trim() });
     } else {
-      await insertExpense({ category: label, amount: n, currency, amount_egp: egp, spent_at: d.getTime(), note: note.trim() });
+      await insertExpense({ category: label, subcategory: sub && subOptions.includes(sub) ? sub : '', amount: n, currency, amount_egp: egp, spent_at: d.getTime(), note: note.trim() });
     }
     success();
     props.onSaved();
@@ -634,9 +646,21 @@ function MoneyForm(props: {
             label={isIn ? t('Source') : t('Category')}
             value={label}
             options={isIn ? props.sources : props.categories}
-            onChange={setLabel}
+            onChange={(v) => {
+              setLabel(v);
+              setSub('');
+            }}
             icon={isIn ? 'briefcase' : 'tag'}
           />
+          {subOptions.length > 0 && (
+            <Select
+              label={t('Subcategory')}
+              value={sub || NO_SUB}
+              options={[NO_SUB, ...subOptions]}
+              onChange={(v) => setSub(v === NO_SUB ? '' : v)}
+              icon="corner-down-right"
+            />
+          )}
           <View style={{ flexDirection: 'row' }}>
             <View style={{ flex: 1.6, marginEnd: 10 }}>
               <Input label={t('Amount')} value={amount} onChange={setAmount} keyboardType="numeric" icon="dollar-sign" placeholder="0" />
