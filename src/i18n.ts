@@ -1,6 +1,6 @@
 import { reloadAppAsync } from 'expo';
 import Storage from 'expo-sqlite/kv-store';
-import { I18nManager } from 'react-native';
+import { Alert, I18nManager } from 'react-native';
 import { AR } from './ar';
 
 export type Lang = 'en' | 'ar';
@@ -109,4 +109,23 @@ export function ensureDirection(): boolean {
   } catch {}
   reloadAppAsync('Apply layout direction').catch(() => undefined);
   return true;
+}
+
+export function confirmSwitchLanguage(): void {
+  const next: Lang = lang === 'ar' ? 'en' : 'ar';
+  Alert.alert(
+    next === 'ar' ? 'التبديل إلى العربية؟' : 'Switch to English?',
+    next === 'ar' ? 'سيتم إعادة تشغيل التطبيق لتطبيق اللغة. بياناتك لن تتأثر.' : 'The app will restart to apply the language. Your data stays as it is.',
+    [
+      { text: next === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
+      {
+        text: next === 'ar' ? 'تبديل' : 'Switch',
+        onPress: () => {
+          setLanguage(next).catch(() =>
+            Alert.alert(t('Restart needed'), t('Close the app completely and open it again to finish switching.')),
+          );
+        },
+      },
+    ],
+  );
 }

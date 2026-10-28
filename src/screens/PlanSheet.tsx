@@ -12,6 +12,8 @@ import {
   PlanKind,
   removeCategory,
   removeSubcategory,
+  saveCategoryOrder,
+  saveSubcategoryOrder,
   renameCategory,
   renameSubcategory,
   savePlan,
@@ -390,16 +392,45 @@ export default function PlanSheet(props: {
     ]);
   };
 
+  const move = async (cat: string, sub: string | undefined, dir: -1 | 1) => {
+    const list = sub ? subs[cat] ?? [] : cats;
+    const key = sub ?? cat;
+    const i = list.indexOf(key);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    const next = [...list];
+    [next[i], next[j]] = [next[j], next[i]];
+    if (sub) {
+      setSubs((cur) => ({ ...cur, [cat]: next }));
+      await saveSubcategoryOrder(cat, next);
+    } else {
+      setCats(next);
+      await saveCategoryOrder(next);
+    }
+    props.onCategoriesChanged();
+  };
+
+  const moveActions = (cat: string, sub?: string) => {
+    const list = sub ? subs[cat] ?? [] : cats;
+    const i = list.indexOf(sub ?? cat);
+    const out: { label: string; icon: IconName; onPress: () => void }[] = [];
+    if (i > 0) out.push({ label: t('Move up'), icon: 'arrow-up', onPress: () => { setMenu(null); move(cat, sub, -1); } });
+    if (i >= 0 && i < list.length - 1) out.push({ label: t('Move down'), icon: 'arrow-down', onPress: () => { setMenu(null); move(cat, sub, 1); } });
+    return out;
+  };
+
   const menuActions = () => {
     if (!menu) return [];
     const { cat, sub } = menu;
     if (sub) {
       return [
+        ...moveActions(cat, sub),
         { label: t('Rename'), icon: 'edit-2' as IconName, onPress: () => { setMenu(null); setPrompt({ mode: 'renameSub', cat, sub, text: sub }); } },
         { label: t('Delete'), icon: 'trash-2' as IconName, danger: true, onPress: () => { setMenu(null); confirmDelete(cat, sub); } },
       ];
     }
     return [
+      ...moveActions(cat),
       { label: t('Rename'), icon: 'edit-2' as IconName, onPress: () => { setMenu(null); setPrompt({ mode: 'renameCat', cat, text: cat }); } },
       { label: t('Add subcategory'), icon: 'corner-down-right' as IconName, onPress: () => { setMenu(null); setPrompt({ mode: 'addSub', cat, text: '' }); } },
       { label: t('Delete'), icon: 'trash-2' as IconName, danger: true, onPress: () => { setMenu(null); confirmDelete(cat); } },

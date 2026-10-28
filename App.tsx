@@ -1,4 +1,4 @@
-import { dayName, ensureDirection, lh, ls, monthShort, t } from './src/i18n';
+import { confirmSwitchLanguage, dayName, ensureDirection, isAR, lh, ls, monthShort, t } from './src/i18n';
 import { Cairo_400Regular, Cairo_500Medium, Cairo_600SemiBold, Cairo_700Bold, Cairo_800ExtraBold } from '@expo-google-fonts/cairo';
 import { InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic } from '@expo-google-fonts/instrument-serif';
 import {
@@ -186,7 +186,13 @@ function Shell() {
               {current.title}
             </Serif>
           </View>
-          <Image source={require('./assets/mark.png')} style={styles.headerMark} />
+          <View style={styles.headerRight}>
+            <Scale onPress={confirmSwitchLanguage} style={styles.langPill}>
+              <Icon name="globe" size={14} color={colors.brass} />
+              <Text style={styles.langText}>{isAR ? 'EN' : 'ع'}</Text>
+            </Scale>
+            <Image source={require('./assets/mark.png')} style={styles.headerMark} />
+          </View>
         </View>
         <View style={{ flex: 1 }}>
           {tab === 'Pipeline' && showPipeline && <PipelineScreen {...screenProps} />}
@@ -234,6 +240,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 10,
   },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  langPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 34,
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    backgroundColor: colors.brassSoft,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  langText: { color: colors.brass, fontFamily: fonts.bold, fontSize: 13, marginStart: 6 },
   headerMark: { width: 54, height: 54, marginBottom: -4, marginEnd: -10, opacity: 0.9 },
   tabWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 18 },
   tabBar: {

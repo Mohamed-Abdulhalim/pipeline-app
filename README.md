@@ -54,7 +54,7 @@ Log money the day it arrives and spending the day it leaves, in EGP or USD (conv
 - One timeline of every entry, filterable to income or expenses
 
 ### 🗓️ Monthly plan
-Before a month starts, I split the salary I'm expecting across spending categories and savings, with a live "left to assign" number so every pound has a job. During the month, each category shows spent vs planned and turns amber, then red, as it gets close or goes over. Spending in categories I didn't plan for shows up on its own line. The arrow next to the month on the Money tab steps up to 11 months into the future, so I can plan each upcoming month right there. Every month starts blank and gets its own plan. Categories live right inside the plan: add, rename or delete them there, and split any category into subcategories (a category with subcategories adds them up for you). Subcategories also show up when logging an expense. Typing a salary amount plays a short cash register ka-ching.
+Before a month starts, I split the salary I'm expecting across spending categories and savings, with a live "left to assign" number so every pound has a job. During the month, each category shows spent vs planned and turns amber, then red, as it gets close or goes over. Spending in categories I didn't plan for shows up on its own line. The arrow next to the month on the Money tab steps up to 11 months into the future, so I can plan each upcoming month right there. Every month starts blank and gets its own plan. Categories live right inside the plan: add, rename or delete them there, and split any category into subcategories (a category with subcategories adds them up for you). Subcategories also show up when logging an expense. The dots menu also moves categories and subcategories up or down, and the order sticks everywhere. Typing a salary amount plays a short cash register ka-ching.
 
 ### 🏦 Savings
 Money I put aside comes straight out of that month's net, so the Money tab shows what's actually left to spend.
@@ -64,7 +64,7 @@ Money I put aside comes straight out of that month's net, so the Money tab shows
 - Any saving can be **hidden** when I create it. It still counts against net, but it stays out of sight until I flip **View hidden savings** in Settings.
 
 ### 🌍 English or Arabic
-Settings has a language switch. In Arabic the whole app flips right to left, uses the Cairo typeface, and translates every label, alert and notification. My own entries stay exactly as I typed them.
+A small globe button in the header (and Settings) switches language. In Arabic the whole app flips right to left, uses the Cairo typeface, and translates every label, alert and notification. My own entries stay exactly as I typed them.
 
 ### 💾 Backup
 Everything lives on the phone in SQLite. No account, no server, no sign-up. Export a JSON backup whenever you want and restore it on any phone.

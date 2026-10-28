@@ -31,6 +31,8 @@ export const AR: Record<string, string> = {
   'None': 'بدون',
   'Leave a field empty to skip it. Tap the dots on a category to rename it, add subcategories or delete it. Amounts are in EGP.': 'اترك الخانة فارغة لتخطيها. اضغط على النقاط بجانب الفئة لتعديل اسمها أو إضافة فئات فرعية أو حذفها. المبالغ بالجنيه المصري.',
   Done: 'تم',
+  'Move up': 'نقل لأعلى',
+  'Move down': 'نقل لأسفل',
   'Plan {month}': 'خطة {month}',
   Edit: 'تعديل',
   'Expected income': 'الدخل المتوقع',

@@ -1,4 +1,4 @@
-import { lang, lh, setLanguage, t, tv } from '../i18n';
+import { confirmSwitchLanguage, lang, lh, t, tv } from '../i18n';
 import Constants from 'expo-constants';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { ReactNode, useEffect, useState } from 'react';
@@ -108,23 +108,7 @@ export default function SettingsScreen(props: {
   }, [props.version]);
 
   const changeLanguage = (v: string) => {
-    const next = v === 'العربية' ? 'ar' : 'en';
-    if (next === lang) return;
-    Alert.alert(
-      next === 'ar' ? 'التبديل إلى العربية؟' : 'Switch to English?',
-      next === 'ar' ? 'سيتم إعادة تشغيل التطبيق لتطبيق اللغة. بياناتك لن تتأثر.' : 'The app will restart to apply the language. Your data stays as it is.',
-      [
-        { text: next === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        {
-          text: next === 'ar' ? 'تبديل' : 'Switch',
-          onPress: () => {
-            setLanguage(next).catch(() =>
-              Alert.alert(t('Restart needed'), t('Close the app completely and open it again to finish switching.')),
-            );
-          },
-        },
-      ],
-    );
+    if ((v === 'العربية' ? 'ar' : 'en') !== lang) confirmSwitchLanguage();
   };
 
   const togglePipeline = async (v: boolean) => {

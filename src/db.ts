@@ -201,6 +201,18 @@ export async function renameCategory(from: string, to: string): Promise<boolean>
   return true;
 }
 
+export async function saveCategoryOrder(names: string[]): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    for (const [i, n] of names.entries()) await db.runAsync('UPDATE categories SET sort = ? WHERE name = ?', i, n);
+  });
+}
+
+export async function saveSubcategoryOrder(category: string, names: string[]): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    for (const [i, n] of names.entries()) await db.runAsync('UPDATE subcategories SET sort = ? WHERE category = ? AND name = ?', i, category, n);
+  });
+}
+
 export async function getSubcategories(): Promise<Record<string, string[]>> {
   const rows = await db.getAllAsync<{ category: string; name: string }>('SELECT category, name FROM subcategories ORDER BY sort, name');
   const out: Record<string, string[]> = {};
